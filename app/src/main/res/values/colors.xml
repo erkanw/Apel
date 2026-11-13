@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The window behind Compose and the launch screen, in the phone's light setting (values-night has the dark one), so
+         the app opens on the tone it will show. -->
+    <color name="app_window">#FFFFFFFF</color>
+</resources>

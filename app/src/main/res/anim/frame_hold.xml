@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The frame going out stays fully opaque while the next one fades in over it. (A real cross-fade, where it fades
+  out as the other fades in, would show the background through Blob halfway: a flicker.)
+-->
+<alpha xmlns:android="http://schemas.android.com/apk/res/android"
+    android:duration="90"
+    android:fromAlpha="1.0"
+    android:toAlpha="1.0" />

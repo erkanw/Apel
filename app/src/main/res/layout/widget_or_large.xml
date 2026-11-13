@@ -1,0 +1,519 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The large OpenRouter widget (about 4 x 3): this week's spend, requests and tokens, each with the models that account for
+     most of it, like OpenRouter's dashboard. Only views a widget may inflate (no plain View). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_card_bg"
+    android:orientation="vertical"
+    android:padding="14dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <TextView
+            style="@style/WidgetText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:maxLines="1"
+            android:text="OpenRouter"
+            android:textColor="@color/widget_muted"
+            android:textSize="12sp"
+            android:fontVariationSettings="'wght' 600, 'opsz' 14" />
+
+        <TextView
+            style="@style/WidgetText"
+            android:id="@+id/w_period"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:textColor="@color/widget_muted"
+            android:textSize="12sp"
+            android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="8dp"
+        android:layout_weight="1"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/WidgetText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:text="Spend"
+                android:textColor="@color/widget_muted"
+                android:textSize="12sp"
+                android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+
+            <TextView
+                style="@style/WidgetText"
+                android:id="@+id/w_spend"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/widget_text"
+                android:textSize="20sp"
+                android:fontVariationSettings="'wght' 600, 'opsz' 28"
+                android:letterSpacing="-0.02" />
+
+            <LinearLayout
+                android:id="@+id/s1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/s1n"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_text"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/s1v"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_muted"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/s2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/s2n"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_text"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/s2v"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_muted"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/s3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/s3n"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_text"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/s3v"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_muted"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/s4"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/s4n"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_text"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/s4v"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_muted"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+        android:layout_marginStart="10dp"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/WidgetText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:text="Requests"
+                android:textColor="@color/widget_muted"
+                android:textSize="12sp"
+                android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+
+            <TextView
+                style="@style/WidgetText"
+                android:id="@+id/w_req"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/widget_text"
+                android:textSize="20sp"
+                android:fontVariationSettings="'wght' 600, 'opsz' 28"
+                android:letterSpacing="-0.02" />
+
+            <LinearLayout
+                android:id="@+id/q1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/q1n"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_text"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/q1v"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_muted"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/q2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/q2n"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_text"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/q2v"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_muted"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/q3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/q3n"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_text"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/q3v"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_muted"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/q4"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/q4n"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_text"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/q4v"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_muted"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+        android:layout_marginStart="10dp"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/WidgetText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:text="Tokens"
+                android:textColor="@color/widget_muted"
+                android:textSize="12sp"
+                android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+
+            <TextView
+                style="@style/WidgetText"
+                android:id="@+id/w_tok"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/widget_text"
+                android:textSize="20sp"
+                android:fontVariationSettings="'wght' 600, 'opsz' 28"
+                android:letterSpacing="-0.02" />
+
+            <LinearLayout
+                android:id="@+id/t1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/t1n"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_text"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/t1v"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_muted"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/t2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/t2n"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_text"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/t2v"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_muted"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/t3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/t3n"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_text"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/t3v"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_muted"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/t4"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/t4n"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_text"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+
+                <TextView
+                    style="@style/WidgetText"
+                    android:id="@+id/t4v"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_muted"
+                    android:textSize="11sp"
+                    android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <TextView
+        style="@style/WidgetText"
+        android:id="@+id/w_foot"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/widget_muted"
+        android:textSize="11sp"
+        android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+</LinearLayout>

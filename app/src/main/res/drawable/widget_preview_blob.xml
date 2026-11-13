@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Blob for the widget picker's preview: the icon's foreground, enlarged past its frame so the body is as big as in
+     the live widget (the icon keeps a wide margin for the launcher's mask). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:bottom="-35dp"
+        android:drawable="@mipmap/ic_launcher_foreground"
+        android:left="-35dp"
+        android:right="-35dp"
+        android:top="-35dp" />
+</layer-list>

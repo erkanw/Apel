@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Only the window behind Compose: it keeps the first frame from flashing white at night. -->
+    <style name="Theme.Vault" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/app_window</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

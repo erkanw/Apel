@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the widget picker shows for the OpenRouter widget (Android 12+): the small one with sample figures. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_card_bg"
+    android:gravity="center_vertical"
+    android:orientation="vertical"
+    android:padding="14dp">
+
+    <TextView
+        style="@style/WidgetText.Caption"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="OpenRouter" />
+
+    <TextView
+        style="@style/WidgetText.Figure"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="$18.42" />
+
+    <TextView
+        style="@style/WidgetText.Body"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="left to spend" />
+
+    <TextView
+        style="@style/WidgetText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:fontVariationSettings="'wght' 600, 'opsz' 14"
+        android:text="Today $0.86" />
+</LinearLayout>

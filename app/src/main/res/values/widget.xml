@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The home-screen widgets' look, from the app's palette and type (DESIGN.md): the surface card, Inter, grey text with colour
+     only for a state. RemoteViews can't use Compose, so the tokens are repeated here. -->
+<resources>
+    <color name="widget_card">#FF19191C</color>
+    <color name="widget_lift">#FF232326</color>
+    <color name="widget_text">#FFF5F5F7</color>
+    <color name="widget_muted">#FF8E8E93</color>
+    <color name="widget_faint">#FF5C5C62</color>
+    <color name="widget_ground">#FF111113</color>
+    <color name="widget_danger">#FFFF5A4E</color>
+
+    <dimen name="widget_radius">24dp</dimen>
+
+    <style name="WidgetText">
+        <item name="android:fontFamily">@font/inter_variable</item>
+        <item name="android:fontVariationSettings">"'wght' 400, 'opsz' 14"</item>
+        <item name="android:textColor">@color/widget_text</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+
+    <!-- The label: what Blob is doing. -->
+    <style name="WidgetText.Title">
+        <item name="android:fontVariationSettings">"'wght' 600, 'opsz' 14"</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:letterSpacing">-0.01</item>
+    </style>
+
+    <!-- A big number (the OpenRouter balance). -->
+    <style name="WidgetText.Figure">
+        <item name="android:fontVariationSettings">"'wght' 600, 'opsz' 28"</item>
+        <item name="android:textSize">26sp</item>
+        <item name="android:letterSpacing">-0.02</item>
+    </style>
+
+    <!-- The start of the last answer, and other secondary text. -->
+    <style name="WidgetText.Body">
+        <item name="android:textColor">@color/widget_muted</item>
+        <item name="android:lineSpacingExtra">2sp</item>
+    </style>
+
+    <!-- The source and the time above the label. -->
+    <style name="WidgetText.Caption">
+        <item name="android:fontVariationSettings">"'wght' 500, 'opsz' 14"</item>
+        <item name="android:textColor">@color/widget_muted</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
+    <!-- The message bar, which opens the chat. -->
+    <style name="WidgetText.Bar">
+        <item name="android:background">@drawable/widget_bar_bg</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:text">@string/widget_message</item>
+        <item name="android:textColor">@color/widget_muted</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <!-- Allow and Deny (or Answer) for a tool request. -->
+    <style name="WidgetText.Button">
+        <item name="android:fontVariationSettings">"'wght' 600, 'opsz' 14"</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+</resources>

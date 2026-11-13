@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android blocks plain http by default. A user's own server may be on their own network (Ollama or LM Studio on a PC,
+  http://192.168.x.y:port), and that can't be listed here ahead of time, so plain http is allowed at this level.
+
+  The app itself decides where a key may go (PLAN §10, ProviderEndpoints from Phase 1): https everywhere except
+  localhost and private addresses the user typed, each key bound to its own host, no credentials on redirects.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

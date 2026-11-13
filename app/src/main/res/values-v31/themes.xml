@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+: the launch screen is Blob alone on the ground tone of the phone's light or dark setting (IconExport draws both pictures), then the app fades in on the same tone. -->
+    <style name="Theme.Vault" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/app_window</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowSplashScreenBackground">@color/app_window</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_blob</item>
+    </style>
+</resources>

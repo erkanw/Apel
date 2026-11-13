@@ -1,0 +1,27 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+
+# Kotlin compiler session files
+.kotlin/
+# Design review captures (screenshots, recordings): kept locally, too heavy for git
+.impeccable/review/
+# Third-party reference screenshots: local only, not ours to publish
+design/references/
+
+# Private: never tracked (paths and details from the maker's PC)
+CLAUDE.md
+private/
+reference/
+
+# Signing
+*.jks
+*.keystore
+keystore.properties

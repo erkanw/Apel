@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Apel</string>
+    <!-- The agent's and the mascot's name until the user renames it (Settings → Agent). Never shown as a literal elsewhere. -->
+    <string name="agent_default_name">Apel</string>
+    <string name="widget_description">Apel on your home screen. Tap to chat.</string>
+    <string name="or_widget_description">What is left on OpenRouter and what you spent today. Tap to open the details.</string>
+
+    <!-- The widget's bar: the agent's name can't be read in a layout, so the bar says it plainly. -->
+    <string name="widget_message">Message…</string>
+    <string name="widget_ask">Ask anything</string>
+    <string name="widget_message_named">Message %1$s…</string>
+
+    <string name="not_connected">Not connected. Connect an AI provider in Settings to start.</string>
+
+    <!-- Notification channels (PLAN §6.13) -->
+    <string name="channel_replies">Replies</string>
+    <string name="channel_replies_description">When %1$s finishes a reply in the background.</string>
+    <string name="notification_new_message">New message</string>
+    <string name="channel_working">Working</string>
+    <string name="working_title">%1$s is working on a reply</string>
+    <string name="channel_working_description">The quiet notice while %1$s is working on a reply.</string>
+</resources>

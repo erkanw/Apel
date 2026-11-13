@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Allow (and Answer): the app's primary button, white with ground-coloured text. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/widget_text" />
+    <corners android:radius="20dp" />
+</shape>

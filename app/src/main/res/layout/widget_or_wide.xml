@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The wide OpenRouter widget: the balance on the left; today, the week, the month and the top model on the right. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_card_bg"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            style="@style/WidgetText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:text="OpenRouter"
+            android:textColor="@color/widget_muted"
+            android:textSize="12sp"
+            android:fontVariationSettings="'wght' 600, 'opsz' 14" />
+
+        <TextView
+            style="@style/WidgetText"
+            android:id="@+id/or_main"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/widget_text"
+            android:textSize="28sp"
+            android:fontVariationSettings="'wght' 600, 'opsz' 28"
+            android:letterSpacing="-0.02" />
+
+        <TextView
+            style="@style/WidgetText"
+            android:id="@+id/or_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/widget_muted"
+            android:textSize="12sp"
+            android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="14dp"
+        android:layout_weight="1.2"
+        android:orientation="vertical">
+
+        <TextView
+            style="@style/WidgetText"
+            android:id="@+id/or_sub"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/widget_text"
+            android:textSize="16sp"
+            android:fontVariationSettings="'wght' 600, 'opsz' 14" />
+
+        <TextView
+            style="@style/WidgetText"
+            android:id="@+id/or_extra"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:maxLines="3"
+            android:textColor="@color/widget_muted"
+            android:textSize="12sp"
+            android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+
+        <TextView
+            style="@style/WidgetText"
+            android:id="@+id/or_time"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/widget_muted"
+            android:textSize="11sp"
+            android:fontVariationSettings="'wght' 400, 'opsz' 14" />
+    </LinearLayout>
+</LinearLayout>
