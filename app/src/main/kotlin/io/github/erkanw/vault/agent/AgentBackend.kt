@@ -20,7 +20,11 @@ import java.io.OutputStream
 data class TurnInput(
     val text: String,
     val media: List<MediaPart> = emptyList(),
+    /** The same files as kept on the phone (their copies), to show with the message later. */
+    val attachments: List<io.github.erkanw.vault.chat.MessageAttachment> = emptyList(),
     val channelId: String? = null,
+    /** The channel's description, for the system prompt. */
+    val channelNote: String? = null,
 )
 
 /**

@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.erkanw.vault.ChatViewModel
 import io.github.erkanw.vault.PagesViewModel
+import io.github.erkanw.vault.ProviderViewModel
 import io.github.erkanw.vault.SettingsViewModel
 import io.github.erkanw.vault.chat.Channel
 import io.github.erkanw.vault.chat.ChannelEntry
@@ -43,6 +44,7 @@ fun VaultApp(
     vm: ChatViewModel,
     pages: PagesViewModel,
     settings: SettingsViewModel,
+    provider: ProviderViewModel,
     focusTick: Int,
     openRouterTick: Int = 0,
     openChatTick: Int = 0,
@@ -60,16 +62,21 @@ fun VaultApp(
     val automations by pages.automations.collectAsStateWithLifecycle()
 
     val hostContext = LocalContext.current
-    val agentName = remember { AgentProfile.name(hostContext) }
+    val agentName = AgentProfile.nameFlow(hostContext).collectAsStateWithLifecycle().value ?: AgentProfile.name(hostContext)
     // Debug builds can show sample data (see DemoMode); a release build never does.
     val demo = remember { DemoMode.active(hostContext) }
-    var screenName by rememberSaveable { mutableStateOf(Screen.Home.name) }
+    val providerState by provider.state.collectAsStateWithLifecycle()
+    val connected = demo || providerState.connected
+    // The first run opens on the welcome (PLAN §6.1); after that, Home.
+    var screenName by rememberSaveable { mutableStateOf(if (demo || AgentProfile.welcomeDone(hostContext)) Screen.Home.name else Screen.Onboarding.name) }
     val screen = Screen.valueOf(screenName)
     var openCount by remember { mutableIntStateOf(0) }
     // The search text on the home screen; kept here because the home screen is left (and rebuilt) when a chat opens.
     var homeQuery by rememberSaveable { mutableStateOf("") }
     // Models and the usage page are reached from Home's "more" sheet or from Settings: Back goes to where you came from.
     var openedFrom by rememberSaveable { mutableStateOf(Screen.Settings.name) }
+    // The provider page is opened from Settings or from Home's "Not connected" line: Back goes there.
+    var providerFrom by rememberSaveable { mutableStateOf(Screen.Settings.name) }
 
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
@@ -81,7 +88,7 @@ fun VaultApp(
             keyboard?.hide()
             openCount++
             vm.refreshSessions()
-            if (vm.connected) pages.loadAutomations()
+            if (connected) pages.loadAutomations()
         }
     }
     // Tapping the widget goes to the chat.
@@ -97,9 +104,13 @@ fun VaultApp(
         if (openRouterTick > 0) screenName = Screen.OpenRouter.name
     }
     // Back goes one step up: Files up a folder first, the usage page to where it was opened from, everything else Home.
-    BackHandler(enabled = screen != Screen.Home) {
+    BackHandler(enabled = screen != Screen.Home && screen != Screen.Onboarding) {
         if (screen == Screen.Files && pages.folderUp()) return@BackHandler
-        screenName = if (screen == Screen.OpenRouter || screen == Screen.Models) openedFrom else Screen.Home.name
+        screenName = when (screen) {
+            Screen.OpenRouter, Screen.Models -> openedFrom
+            Screen.Provider -> providerFrom
+            else -> Screen.Home.name
+        }
     }
 
     fun go(target: Screen) {
@@ -145,7 +156,8 @@ fun VaultApp(
                         val runningName = channelEntries.firstOrNull { it.running }?.look?.title ?: shownSessions.firstOrNull { it.running }?.title
                         val presence = when {
                             failed -> Presence.Problem
-                            !vm.connected -> Presence.Unknown
+                            // Not connected needs the user: amber, like "can't reach" (DESIGN.md, Signal).
+                            !connected -> Presence.Problem
                             runningName != null -> Presence.Working
                             sessionsLoading && sessions.isEmpty() -> Presence.Unknown
                             else -> Presence.Ready
@@ -158,7 +170,7 @@ fun VaultApp(
                             presence = presence,
                             status = when {
                                 failed -> "Couldn’t load your chats. Tap to try again."
-                                !vm.connected -> "Not connected"
+                                !connected -> "Not connected. Tap to connect."
                                 runningName != null -> "Working in $runningName"
                                 else -> null
                             },
@@ -185,7 +197,7 @@ fun VaultApp(
                             onTogglePinned = vm::togglePinned,
                             onDelete = vm::deleteSession,
                             onNavigate = ::go,
-                            onRetry = vm::refreshSessions,
+                            onRetry = { if (connected) vm.refreshSessions() else { providerFrom = Screen.Home.name; screenName = Screen.Provider.name } },
                             channels = channelEntries,
                             onOpenChannel = { channel ->
                                 vm.openChannel(channel)
@@ -238,11 +250,26 @@ fun VaultApp(
                         onBack = back,
                         onOpenRouter = { go(Screen.OpenRouter) },
                         onModels = { go(Screen.Models) },
+                        onProvider = { providerFrom = Screen.Settings.name; screenName = Screen.Provider.name },
+                        providerSummary = when (providerState.kind) {
+                            io.github.erkanw.vault.provider.ProviderKind.OpenRouter -> "OpenRouter"
+                            io.github.erkanw.vault.provider.ProviderKind.Custom -> providerState.customUrl.removePrefix("https://").removePrefix("http://")
+                            io.github.erkanw.vault.provider.ProviderKind.None -> "Not connected"
+                        },
+                        onWelcome = {
+                            AgentProfile.setWelcomeDone(hostContext, false)
+                            screenName = Screen.Onboarding.name
+                        },
                     )
                     Screen.OpenRouter -> OpenRouterScreen(settings, onBack = { screenName = openedFrom })
                     Screen.Files -> FilesScreen(pages, onBack = back)
                     Screen.Tools -> ToolsScreen(pages, onBack = back)
-                    Screen.Models -> ModelsScreen(settings, onBack = { screenName = openedFrom }, onSettings = { screenName = Screen.Settings.name })
+                    Screen.Models -> ModelsScreen(settings, onBack = { screenName = openedFrom }, onSettings = { screenName = Screen.Provider.name })
+                    Screen.Provider -> ProviderScreen(provider, onBack = { screenName = providerFrom }, onModels = { go(Screen.Models) }, onUsage = { go(Screen.OpenRouter) })
+                    Screen.Onboarding -> OnboardingScreen(provider, onDone = {
+                        vm.refreshComposerExtras()
+                        screenName = Screen.Home.name
+                    })
                 }
             }
         }
@@ -252,6 +279,6 @@ fun VaultApp(
 /** How deep a screen is in the stack: the home screen at the bottom, the usage page (reached from Settings) on top. */
 private fun depthOf(screen: Screen): Int = when (screen) {
     Screen.Home -> 0
-    Screen.OpenRouter, Screen.Models -> 2
+    Screen.OpenRouter, Screen.Models, Screen.Provider -> 2
     else -> 1
 }

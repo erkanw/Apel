@@ -30,21 +30,18 @@ class MainActivity : ComponentActivity() {
     private val chat: ChatViewModel by viewModels()
     private val pages: PagesViewModel by viewModels()
     private val settings: SettingsViewModel by viewModels()
+    private val provider: ProviderViewModel by viewModels()
 
     /** Bumped each time the widget opens the app, so the chat puts the keyboard up. */
     private var focusTick by mutableIntStateOf(0)
     private var openRouterTick by mutableIntStateOf(0)
     private var openChatTick by mutableIntStateOf(0)
 
-    private val notificationPermission =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* the service works either way */ }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // The look chosen in Settings, told to Android so the next launch screen already wears it (a no-op once it has).
         applyNightMode(this, ThemeMode.fromId(BlobPrefs.themeId(this)))
         enableEdgeToEdge()
-        askForNotificationsOnce()
         Haptics.attach(this)
         if (savedInstanceState == null) handle(intent)
         setContent {
@@ -55,7 +52,7 @@ class MainActivity : ComponentActivity() {
                 val bars = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT) { dark }
                 enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
             }
-            VaultTheme(mode) { VaultApp(chat, pages, settings, focusTick, openRouterTick, openChatTick) }
+            VaultTheme(mode) { VaultApp(chat, pages, settings, provider, focusTick, openRouterTick, openChatTick) }
         }
     }
 
@@ -63,6 +60,12 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handle(intent)
+    }
+
+    // Back in front: finish a sign-in whose code arrived while the browser was in front.
+    override fun onResume() {
+        super.onResume()
+        provider.onForeground()
     }
 
     // While the app is on screen a reply is read as it arrives: no notification then.
@@ -82,21 +85,10 @@ class MainActivity : ComponentActivity() {
         chat.onVisible()
     }
 
-    /**
-     * Android 13+ asks before an app may show notifications. Asked once for now; PLAN §6.13 moves the ask to after the
-     * first reply (Phase 1).
-     */
-    private fun askForNotificationsOnce() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-        if (BlobPrefs.notificationsAsked(this)) return
-        BlobPrefs.setNotificationsAsked(this)
-        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-    }
-
     private fun handle(intent: Intent?) {
         if (intent?.getBooleanExtra(EXTRA_ASK, false) == true) focusTick++
+        // Back from the OpenRouter sign-in: the "Back to the app" link only brings the app to the front (the code
+        // already came in through the loopback address); onResume finishes the sign-in.
         when (intent?.action) {
             // The usage widget was tapped.
             ACTION_OPENROUTER -> openRouterTick++

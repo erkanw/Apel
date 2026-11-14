@@ -156,6 +156,9 @@ fun GroupActionRow(
     }
 }
 
+/** True where fields sit straight on the ground (onboarding) rather than in a group on the lift: their well is then the lift. */
+val LocalOnGround = androidx.compose.runtime.compositionLocalOf { false }
+
 /**
  * A text field: its label above, the text in an inset well (the ground tone, so it reads as a hole in the lift), the
  * help text below. No outline; the caret is the text colour.
@@ -179,7 +182,7 @@ internal fun VaultField(
     Column(modifier) {
         Text(label, style = VaultType.Label, color = if (isError) k.attention else k.muted, modifier = Modifier.padding(bottom = 6.dp))
         Box(
-            Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(14.dp)).background(k.background).padding(horizontal = 14.dp, vertical = 13.dp),
+            Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(14.dp)).background(if (LocalOnGround.current) k.surfaceHigh else k.background).padding(horizontal = 14.dp, vertical = 13.dp),
             contentAlignment = Alignment.CenterStart,
         ) {
             if (value.isEmpty() && placeholder != null) Text(placeholder, style = VaultType.Body, color = k.faint, maxLines = if (singleLine) 1 else minLines)

@@ -787,7 +787,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             try {
-                backend.run(_currentChatId.value, TurnInput(prompt, media, activeChannel.value?.id)).collect { event ->
+                backend.run(_currentChatId.value, TurnInput(prompt, media, sentMessage.attachments, activeChannel.value?.id, activeChannel.value?.let { ChannelLooks.look(it).let { l -> if (l.blurb.isBlank()) l.title else "${l.title} (${l.blurb})" } })).collect { event ->
                     if (!here()) return@collect
                     when (event) {
                         is TurnEvent.MessageAccepted -> if (_currentChatId.value == null) {
@@ -821,6 +821,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 if (here()) {
                     publish(BlobState.Finished, snippet = answer.take(SNIPPET_CHARS))
+                    offerNotifications()
                     // The app is in the background: say the reply is here.
                     val chat = _currentChatId.value
                     if (!prompt.startsWith("/") && !ChatAlerts.appVisible && seenStore.enabled && chat != null) {
@@ -867,6 +868,23 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 if (here() && !_busy.value && _mood.value == BlobState.Finished) publish(BlobState.Idle)
             }
         }
+    }
+
+    /** True after the first reply, while notifications were never asked for (PLAN §6.13): the chat asks then. */
+    private val _askNotifications = MutableStateFlow(false)
+    val askNotifications: StateFlow<Boolean> = _askNotifications.asStateFlow()
+
+    private fun offerNotifications() {
+        val app = getApplication<Application>()
+        if (android.os.Build.VERSION.SDK_INT < 33 || io.github.erkanw.vault.data.BlobPrefs.notificationsAsked(app)) return
+        if (app.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) return
+        _askNotifications.value = true
+    }
+
+    /** The question was answered (either way): it isn't asked again. */
+    fun notificationsAnswered() {
+        io.github.erkanw.vault.data.BlobPrefs.setNotificationsAsked(getApplication())
+        _askNotifications.value = false
     }
 
     fun stop() {

@@ -2,6 +2,11 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 android {
@@ -33,6 +38,7 @@ android {
         compose = true
     }
     sourceSets["main"].java.srcDir("src/main/kotlin")
+    sourceSets["androidTest"].assets.srcDir("$projectDir/schemas")
     sourceSets["test"].java.srcDir("src/test/kotlin")
 }
 
@@ -49,8 +55,14 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.core)
 
-    // Android has no WebSocket client of its own; the agent’s chat is a WebSocket.
+    // HTTP for the provider, web pages and tool servers.
     implementation(libs.okhttp)
+
+    // Sessions and messages on the phone (PLAN §5), and the provider sign-in in a Custom Tab.
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+    implementation(libs.androidx.browser)
 
     testImplementation(libs.junit)
     // The JVM unit tests need a real org.json; android.jar only has stubs.

@@ -78,7 +78,15 @@ import io.github.erkanw.vault.R
 import androidx.compose.ui.res.stringResource
 
 @Composable
-fun SettingsScreen(vm: SettingsViewModel, onBack: () -> Unit, onOpenRouter: () -> Unit = {}, onModels: () -> Unit = {}) {
+fun SettingsScreen(
+    vm: SettingsViewModel,
+    onBack: () -> Unit,
+    onOpenRouter: () -> Unit = {},
+    onModels: () -> Unit = {},
+    onProvider: () -> Unit = {},
+    providerSummary: String = "",
+    onWelcome: () -> Unit = {},
+) {
     val k = MaterialTheme.vault
     val context = LocalContext.current
     val view = LocalView.current
@@ -110,6 +118,15 @@ fun SettingsScreen(vm: SettingsViewModel, onBack: () -> Unit, onOpenRouter: () -
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
+            Section("Provider") {
+                ActionRow(
+                    title = "Provider",
+                    subtitle = providerSummary,
+                    onClick = onProvider,
+                    chevron = true,
+                )
+            }
+
             Section("Appearance") {
                 Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                     androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -219,6 +236,8 @@ fun SettingsScreen(vm: SettingsViewModel, onBack: () -> Unit, onOpenRouter: () -
                         style = VaultType.Caption, color = k.muted,
                     )
                 }
+                RowDivider()
+                ActionRow(title = "Show the welcome again", subtitle = "The first-run steps: provider, first model, name.", onClick = onWelcome)
             }
             Spacer(Modifier.height(12.dp))
         }

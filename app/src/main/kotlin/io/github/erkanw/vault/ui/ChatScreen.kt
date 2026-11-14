@@ -507,7 +507,8 @@ fun ChatScreen(vm: ChatViewModel, focusTick: Int, onBack: () -> Unit, onSettings
             onOpenFile = vm::openAttachment,
             onRename = if (currentSession != null) ({ renamingSession = currentSession }) else null,
             onChangeModel = if (models.presets.isNotEmpty()) ({ showModels = true }) else null,
-            onCompress = if (chatId != null) ({ vm.send("/compact") }) else null,
+            // Only when the agent can compact (Phase 4): until then the command isn't offered.
+            onCompress = if (chatId != null && commands.any { it.name == "/compact" }) ({ vm.send("/compact") }) else null,
         )
     }
     }
@@ -546,6 +547,20 @@ fun ChatScreen(vm: ChatViewModel, focusTick: Int, onBack: () -> Unit, onSettings
                 vm.chooseModel(it)
             },
             onDismiss = { showModels = false },
+        )
+    }
+
+    // After the first reply: notifications, asked once (PLAN §6.13).
+    val askNotifications by vm.askNotifications.collectAsStateWithLifecycle()
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { vm.notificationsAnswered() }
+    if (askNotifications) {
+        VaultDialog(
+            title = "Get notifications?",
+            text = "${LocalAgentName.current} can tell you when it finishes in the background or when an automation runs.",
+            confirm = "Allow",
+            dismiss = "Not now",
+            onConfirm = { notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS) },
+            onDismiss = vm::notificationsAnswered,
         )
     }
 
@@ -645,7 +660,7 @@ private fun statusLine(state: BlobState, configured: Boolean, loading: Boolean, 
     busy -> "Thinking…"
     loading -> "Loading…"
     !configured -> "Connect an AI provider in Settings"
-    else -> "Working…"
+    else -> "Ready"
 }
 
 /** What the new Blob plays for the chat's state (the old mascot's states, mapped onto Blob Atelier's eight). */

@@ -23,6 +23,8 @@ data class CatalogModel(
     val zdr: Boolean,
     val zdrIn: Double = 0.0,
     val zdrOut: Double = 0.0,
+    /** What it reads besides text ("image", "file", "audio", "video"); empty when unknown. */
+    val inputs: Set<String> = emptySet(),
 ) {
     val free: Boolean get() = id.endsWith(":free") || (promptPerM == 0.0 && completionPerM == 0.0)
 
@@ -61,6 +63,8 @@ fun parseCatalog(modelsBody: String, zdrBody: String): List<CatalogModel> {
         val params = o.optJSONArray("supported_parameters")
         val supported = if (params == null) emptySet() else (0 until params.length()).map { params.optString(it) }.toSet()
         val zdrPrice = cheapest[id]
+        val modalities = o.optJSONObject("architecture")?.optJSONArray("input_modalities")
+        val inputs = if (modalities == null) emptySet() else (0 until modalities.length()).map { modalities.optString(it) }.filter { it.isNotBlank() && it != "text" }.toSet()
         out.add(
             CatalogModel(
                 id = id,
@@ -74,6 +78,7 @@ fun parseCatalog(modelsBody: String, zdrBody: String): List<CatalogModel> {
                 zdr = zdrPrice != null,
                 zdrIn = zdrPrice?.first ?: 0.0,
                 zdrOut = zdrPrice?.second ?: 0.0,
+                inputs = inputs,
             ),
         )
     }
@@ -171,7 +176,7 @@ fun catalogToJson(models: List<CatalogModel>, at: Long): String = JSONObject().p
             a.put(
                 JSONObject().put("id", m.id).put("name", m.name).put("ctx", m.contextTokens).put("in", m.promptPerM)
                     .put("out", m.completionPerM).put("tools", m.tools).put("reasoning", m.reasoning).put("created", m.created)
-                    .put("zdr", m.zdr).put("zin", m.zdrIn).put("zout", m.zdrOut),
+                    .put("zdr", m.zdr).put("zin", m.zdrIn).put("zout", m.zdrOut).put("inputs", JSONArray(m.inputs.toList())),
             )
         }
     },
@@ -188,6 +193,7 @@ fun parseCachedCatalog(json: String?): Pair<List<CatalogModel>, Long>? {
             promptPerM = o.optDouble("in", 0.0), completionPerM = o.optDouble("out", 0.0),
             tools = o.optBoolean("tools"), reasoning = o.optBoolean("reasoning"), created = o.optLong("created"),
             zdr = o.optBoolean("zdr"), zdrIn = o.optDouble("zin", 0.0), zdrOut = o.optDouble("zout", 0.0),
+            inputs = o.optJSONArray("inputs")?.let { i -> (0 until i.length()).map { i.optString(it) }.toSet() }.orEmpty(),
         )
     }.filter { it.id.isNotBlank() }
     return if (list.isEmpty()) null else list to root.optLong("at", 0L)
