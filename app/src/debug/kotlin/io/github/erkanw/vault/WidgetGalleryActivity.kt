@@ -53,7 +53,7 @@ class WidgetGalleryActivity : Activity() {
         val px = BlobFlipbook.framePx(this)
         fun add(size: Size, state: BlobState, content: Content, widthDp: Int, heightDp: Int) {
             val start = System.nanoTime()
-            val frames = BlobFlipbook.frames(blobMoodOf(state), px, variant = 3)
+            val frames = BlobFlipbook.frames(blobMoodOf(state), px, variant = 3, look = io.github.erkanw.vault.store.LookStore.look(this))
             Log.i("WidgetGallery", "$state: ${LOOP} frames of $px px in ${(System.nanoTime() - start) / 1_000_000} ms")
             val views = BlobWidgetUpdater.build(this, size, content, frames, null, blend = true)
             val slot = FrameLayout(this)

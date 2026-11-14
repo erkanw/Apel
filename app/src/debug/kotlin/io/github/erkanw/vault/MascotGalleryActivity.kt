@@ -42,6 +42,10 @@ class MascotGalleryActivity : ComponentActivity() {
         val asked = intent.getStringExtra("mood")?.let { n -> BlobMood.entries.firstOrNull { it.name.equals(n, true) } }
         val bg = intent.getStringExtra("bg")?.let { Color(android.graphics.Color.parseColor("#$it")) } ?: Color(0xFF111113)
         val light = bg.luminance() > 0.5f
+        intent.getStringExtra("sheet")?.let { id ->
+            val color = io.github.erkanw.vault.mascot.BlobColor.entries.first { it.id == id }
+            io.github.erkanw.vault.mascot.BlobEyes.entries.forEach { SheetExport.run(this, color, it, bg.let { c -> android.graphics.Color.argb(255, (c.red * 255).toInt(), (c.green * 255).toInt(), (c.blue * 255).toInt()) }, light) }
+        }
         setContent { io.github.erkanw.vault.ui.VaultTheme(if (light) io.github.erkanw.vault.ui.ThemeMode.Light else io.github.erkanw.vault.ui.ThemeMode.Dark) {
             var big by remember { mutableStateOf(asked) }
             val label = TextStyle(color = Color(0xFF8E8E93), fontSize = 13.sp)

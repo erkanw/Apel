@@ -203,7 +203,7 @@ components:
 
 # Design System: Apel (Android)
 
-> **Scope status.** Apel grew out of an earlier private agent client for Android: the screens below keep its look unchanged; the data now comes from an on-device agent (`AgentBackend`). Home, the side drawer, Chat (messages, working line, composer, steps, model sheet), the session information page, the media viewer and the global foundation (palette, type, motion, icons, component kit in `ui/Kit.kt`) are reviewed; the secondary pages (Files, Skills, Automations, Tools, Settings, Models, the usage page) are on the page kit in `ui/PageKit.kt`. The mascot is being ported from the earlier fixed glass cloud to a customisable Blob Atelier blob (Phase 2); until then the cloud drawing stands in for the default look. New screens (onboarding, Look, Databases, Agent, budget, approval card, Trash) are added to this file as they are built. **Dark is the primary world; light is its inverse**, with the same roles and components (see Light theme).
+> **Scope status.** Apel grew out of an earlier private agent client for Android: the screens below keep its look unchanged; the data now comes from an on-device agent (`AgentBackend`). Home, the side drawer, Chat (messages, working line, composer, steps, model sheet), the session information page, the media viewer and the global foundation (palette, type, motion, icons, component kit in `ui/Kit.kt`) are reviewed; the secondary pages (Files, Skills, Automations, Tools, Settings, Models, the usage page) are on the page kit in `ui/PageKit.kt`. The mascot is a customisable Blob Atelier blob, and the Look page is its in-app studio. New screens (onboarding, Look, Databases, Agent, budget, approval card, Trash) are added to this file as they are built. **Dark is the primary world; light is its inverse**, with the same roles and components (see Light theme).
 
 ## Overview
 
@@ -254,7 +254,7 @@ The same roles inverted, as Grok's own light look (`ui/Theme.kt`): ground #FFFFF
 - **Signal colours are a step deeper** so they hold as small text on the lift as well as on white (4.5:1 or better): live #1E9E5E, danger #C9342A, attention #9A5700. Muted is 4.9:1 on the lift.
 - **Dim layers are lighter:** the drawer dims the pushed screen with 14 % black (dark: 50 %), sheets with 16 % (dark: 32 %); grey over white reads as dirt.
 - **A disabled primary button** is the pressed grey with faint text instead of the faded ink pill.
-- **The blob on a light page** keeps its body; its rim becomes a faint ink line (#2A2140 at 11 %) so its dome doesn't melt into the white, and his ground shadow is the original's soft ink (#2A2140 at 22 %) instead of black.
+- **The blob on a light page** keeps its body; its rim becomes a faint ink line (#2A2140 at 11 %) so its dome doesn't melt into the white (and on a dark page a near-black body, ink, gets a light rim, white at 12 %, for the same reason), and his ground shadow is the original's soft ink (#2A2140 at 22 %) instead of black.
 - **System, Light, Dark** (Settings, General). The window colour and the launch screen follow the phone's own setting (`values` / `values-night`, `drawable-nodpi` / `drawable-night-nodpi`); on Android 12+ the app tells the system its own choice (`applyNightMode`), so with System, Light or Dark it opens on the tone it shows. Android 10 and 11 follow the phone. The widgets stay dark.
 
 ### Named Rules
@@ -389,7 +389,9 @@ A Blob Atelier blob, drawn natively on a Canvas from Blob Atelier's shapes, fini
 - **Life:** breathes, blinks, looks around, follows a finger, squishes when poked, can be told where to look (it looks down at the Ask field while you type).
 - **Sizes:** the box is the drawing area. On Home it is 210dp, 150dp with the keyboard up; 168dp on the Look page; 48dp in the working line. Thumbnails are stills. Never on every list row.
 - **Reduced motion:** when the system animator scale is 0, the blob holds still in its mood's pose.
-- **Until Phase 2** the app still draws the agent's glass cloud (cloud shape, glass finish, capsule eyes) through the renamed `Blob*` classes.
+- **Finishes, natively:** gradients over the body's bounds as SVG's objectBoundingBox, blurred layers as Gaussian-profile radial gradients (discs, ellipses) or BlurMaskFilter (stroked edges). The layers that never move against the body (glass frost and edge, jelly glow and edges, clay light and shade, velvet sheen) and the grain are baked into one bitmap per look, size and shape. The grain is light-grey noise (about sRGB 187, as the original's linear-light turbulence) in soft light inside that isolated layer, so over bare body it lightens: this is what makes clay and velvet read pale on ink. Velvet's edge fuzz (a displacement filter) is not reproduced.
+- **Eyes:** dot 21 by 21 or capsule 15 by 30 units, with a glint; white on dark bodies (luminance under 0.18: ink and cocoa) except on glass, dark (#1E1C24) otherwise. Blush ellipses by hue (#FF7EA6 on dark bodies, #FF5E86 on pink-red hues, #FF7A93 otherwise).
+- **The saved look** is one Studio-link hash in SharedPreferences (`LookStore`), given to every Blob by `LocalBlobLook`.
 
 ### Home-screen widgets
 RemoteViews can't use Compose, so the tokens are repeated in `res/values/widget.xml` and the layouts use its styles.
@@ -401,9 +403,13 @@ RemoteViews can't use Compose, so the tokens are repeated in `res/values/widget.
 - **Sizes:** small below 200dp wide; wide from 200dp; tall (with the session list) from 250dp high, read as the portrait height the launcher reports (`widget/WidgetSize.kt`).
 - **Picker:** both widgets have a preview layout (Android 12+) with sample content, so the picker shows the real card.
 
+### Look page (`ui/LookScreen.kt`)
+Settings → Agent → Look (the row's second line names shape, colour and finish), and "Change look" on onboarding's last step, which opens the page over the welcome. Header "Look" with the agent's name as caption and a ⋯ menu holding Reset to default. Under it the live 168dp blob, a scrolling row of mood chips to preview each mood ("Preview: Thinking"), and a secondary button Randomize with the Lucide dices icon (the Studio's taste rules; the blob is poked as it changes). Then groups: **Shape** (a 4 by 2 grid of tiles) and **Finish** (3 by 2), each tile on the lift with a still thumbnail of the current look in that option and a Caption label; the chosen tile sits on the pressed tone with its label in text colour and an 18dp accent check disc (white on dark, ink on light) in its top-right corner. **Colour**: the eleven colours as 36dp discs in 48dp targets on a lift group, each with the hairline, or a faint rim when the colour is within a step of the lift's tone (ink on dark, milk on light), so no disc vanishes; the chosen one is ringed 2dp in the text colour with a 3dp gap, the one ring in the app. **Face**: Eyes as two chips and Blush as a switch row. Every change is saved at once, the blob squashes and morphs, and the widget is redrawn in the background. Finish tiles show a larger thumbnail (64dp body) than shape tiles (44dp) so the material reads. Tiles, swatches and the Eyes chips read "Shape: Bean, selected"; the widget is redrawn once the choices settle (400ms).
+
 ### App icon, notification icon, launch screen
-- **Launcher icon:** adaptive. The foreground is the blob drawn by the app's painter (idle, still, eyes straight ahead) at every density by the debug `IconExport`, its body 50dp of the 108dp canvas; the background is the charcoal with a soft radial lift (#2A2A2E to #111113) behind it. The monochrome layer for themed icons is its silhouette with the eyes cut out.
-- **Notification icon:** the same silhouette at 24dp, white; the system tints it.
+- **Always the default look** (Dumpling, milk, matte, dot eyes, blush), whatever the user picks.
+- **Launcher icon:** adaptive. The foreground is the blob drawn by the app's painter (idle, still, eyes straight ahead) at every density by the debug `IconExport`, its body 50dp of the 108dp canvas; the background is the charcoal with a soft radial lift (#2A2A2E to #111113) behind it. The monochrome layer for themed icons is its silhouette with the eyes cut out, written by the same `IconExport` from the outline.
+- **Notification icon:** the same silhouette across 22 of 24 units, its dot eyes enlarged 1.4x, white; the system tints it.
 - **Launch screen (Android 12+):** The blob alone on the ground tone, from a 960px export, then the app fades in on the same #111113. The window colour is #111113 in both system themes until the light theme exists.
 
 ### Channel blob (BlobFlat)

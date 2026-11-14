@@ -63,6 +63,7 @@ fun VaultApp(
 
     val hostContext = LocalContext.current
     val agentName = AgentProfile.nameFlow(hostContext).collectAsStateWithLifecycle().value ?: AgentProfile.name(hostContext)
+    val blobLook = io.github.erkanw.vault.store.LookStore.flow(hostContext).collectAsStateWithLifecycle().value ?: io.github.erkanw.vault.mascot.BlobLook.Default
     // Debug builds can show sample data (see DemoMode); a release build never does.
     val demo = remember { DemoMode.active(hostContext) }
     val providerState by provider.state.collectAsStateWithLifecycle()
@@ -107,18 +108,18 @@ fun VaultApp(
     BackHandler(enabled = screen != Screen.Home && screen != Screen.Onboarding) {
         if (screen == Screen.Files && pages.folderUp()) return@BackHandler
         screenName = when (screen) {
-            Screen.OpenRouter, Screen.Models -> openedFrom
+            Screen.OpenRouter, Screen.Models, Screen.Look -> openedFrom
             Screen.Provider -> providerFrom
             else -> Screen.Home.name
         }
     }
 
     fun go(target: Screen) {
-        if (target == Screen.Models || target == Screen.OpenRouter) openedFrom = screen.name
+        if (target == Screen.Models || target == Screen.OpenRouter || target == Screen.Look) openedFrom = screen.name
         screenName = target.name
     }
 
-    CompositionLocalProvider(LocalAgentName provides agentName) {
+    CompositionLocalProvider(LocalAgentName provides agentName, io.github.erkanw.vault.mascot.LocalBlobLook provides blobLook) {
         // The home screen is at the bottom of the stack; every other screen opens over it (sliding in from the right)
         // and goes back to it (sliding out to the right).
         AnimatedContent(
@@ -250,6 +251,7 @@ fun VaultApp(
                         onBack = back,
                         onOpenRouter = { go(Screen.OpenRouter) },
                         onModels = { go(Screen.Models) },
+                        onLook = { go(Screen.Look) },
                         onProvider = { providerFrom = Screen.Settings.name; screenName = Screen.Provider.name },
                         providerSummary = when (providerState.kind) {
                             io.github.erkanw.vault.provider.ProviderKind.OpenRouter -> "OpenRouter"
@@ -266,6 +268,7 @@ fun VaultApp(
                     Screen.Tools -> ToolsScreen(pages, onBack = back)
                     Screen.Models -> ModelsScreen(settings, onBack = { screenName = openedFrom }, onSettings = { screenName = Screen.Provider.name })
                     Screen.Provider -> ProviderScreen(provider, onBack = { screenName = providerFrom }, onModels = { go(Screen.Models) }, onUsage = { go(Screen.OpenRouter) })
+                    Screen.Look -> LookScreen(onBack = { screenName = openedFrom })
                     Screen.Onboarding -> OnboardingScreen(provider, onDone = {
                         vm.refreshComposerExtras()
                         screenName = Screen.Home.name
@@ -279,6 +282,6 @@ fun VaultApp(
 /** How deep a screen is in the stack: the home screen at the bottom, the usage page (reached from Settings) on top. */
 private fun depthOf(screen: Screen): Int = when (screen) {
     Screen.Home -> 0
-    Screen.OpenRouter, Screen.Models, Screen.Provider -> 2
+    Screen.OpenRouter, Screen.Models, Screen.Provider, Screen.Look -> 2
     else -> 1
 }

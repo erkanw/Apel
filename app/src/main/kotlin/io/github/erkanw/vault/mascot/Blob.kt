@@ -28,8 +28,12 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.compositionLocalOf
 import kotlin.math.hypot
 import kotlin.math.tanh
+
+/** The mascot’s look, for every Blob on screen (handbook §4.3); the shell provides the saved one. */
+val LocalBlobLook = compositionLocalOf { BlobLook.Default }
 
 /**
  * Blob, the agent’s mascot, alive: breathes, blinks, looks around, follows a finger, squishes when poked, and plays [mood].
@@ -54,13 +58,25 @@ fun Blob(
     /** The error badge's colour: red by default; amber when the error means "this needs you" (can't reach the agent). */
     errorColor: Color = Color(0xFFFF5A4E),
     seed: Int = 7,
+    /** The look to wear; the saved one by default. */
+    look: BlobLook = LocalBlobLook.current,
+    /** Each new value pokes Blob once (Randomize does). */
+    pokeTick: Int = 0,
 ) {
     val context = LocalContext.current
-    val engine = remember { BlobEngine(seed) }
+    val engine = remember { BlobEngine(seed).apply { setShape(look.shape, still = true) } }
     val lite = size < 72.dp
     val painter = remember(lite) { BlobPainter(lite) }
     val onLight = MaterialTheme.colorScheme.background.luminance() > 0.5f
     painter.onLight = onLight
+    // A new look: the body morphs into the new shape and squashes once, as in the Studio.
+    val shown = remember { arrayOf(look) }
+    if (shown[0] != look) {
+        val old = shown[0]
+        shown[0] = look
+        if (old.shape != look.shape) engine.setShape(look.shape) else if (old.finish != look.finish || old.color != look.color) engine.lookChanged()
+    }
+    painter.look = look
     val reducedMotion = remember {
         Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
     }
@@ -70,7 +86,9 @@ fun Blob(
     engine.setMood(mood)
     engine.look = lookAt?.let { it.x to it.y }
 
-    LaunchedEffect(still, mood) {
+    LaunchedEffect(pokeTick) { if (pokeTick > 0 && !still) engine.poke() }
+
+    LaunchedEffect(still, mood, look) {
         if (still) {
             engine.step(0f, still = true)
             tick++

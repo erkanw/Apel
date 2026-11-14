@@ -62,8 +62,11 @@ object BlobWidgetUpdater {
             val animated = WidgetStatus.isAnimated(context)
             val blend = WidgetStatus.isBlended(context)
             val px = BlobFlipbook.framePx(context)
-            val frames = if (animated) BlobFlipbook.frames(blobMoodOf(shown), px, variant) else null
-            val still = if (animated) null else BlobFlipbook.still(blobMoodOf(shown), px)
+            val look = io.github.erkanw.vault.store.LookStore.look(context)
+            val frames = if (animated) BlobFlipbook.frames(blobMoodOf(shown), px, variant, look) else null
+            val still = if (animated) null else BlobFlipbook.still(blobMoodOf(shown), px, look)
+            // The look changed while drawing: a newer redraw is on its way, so don't push a stale one.
+            if (io.github.erkanw.vault.store.LookStore.look(context) != look) return
             val label = labelFor(shown, context)
             val content = contentFor(context, shown, snapshot, label, snapshot.snippet, now)
             for (id in ids) {

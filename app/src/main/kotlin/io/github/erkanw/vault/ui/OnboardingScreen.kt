@@ -56,6 +56,7 @@ fun OnboardingScreen(vm: ProviderViewModel, onDone: () -> Unit) {
     var name by rememberSaveable { mutableStateOf(agent) }
     var chosen by rememberSaveable { mutableStateOf<String?>(null) }
     var warnFor by rememberSaveable { mutableStateOf<String?>(null) }
+    var lookOpen by rememberSaveable { mutableStateOf(false) }
 
     // Once OpenRouter is connected, the next step is the first model.
     LaunchedEffect(state.kind) {
@@ -71,16 +72,27 @@ fun OnboardingScreen(vm: ProviderViewModel, onDone: () -> Unit) {
         }.name
     }
 
+    // The Look page in place of the welcome (only one of them on screen); the step and the typed name stay as they were.
+    if (lookOpen) {
+        BackHandler { lookOpen = false }
+        LookScreen(onBack = { lookOpen = false })
+        return
+    }
+
     androidx.compose.runtime.CompositionLocalProvider(LocalOnGround provides true) {
     Column(Modifier.fillMaxSize().background(k.background).statusBarsPadding().navigationBarsPadding().imePadding()) {
+        // One mascot for the whole welcome: it keeps living across the steps and grows or shrinks on the settle spring.
+        val big = step == Step.Welcome || step == Step.Yours
+        val blobSize by androidx.compose.animation.core.animateDpAsState(if (big) 210.dp else 120.dp, Motion.settle(), label = "blobSize")
+        val blobTop by androidx.compose.animation.core.animateDpAsState(if (big) 72.dp else 28.dp, Motion.settle(), label = "blobTop")
+        Column(Modifier.fillMaxWidth().padding(top = blobTop, bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Blob(BlobMood.Idle, size = blobSize, description = agent)
+        }
         AnimatedContent(step, Modifier.weight(1f), transitionSpec = { fadeIn(tween(Motion.Medium)) togetherWith fadeOut(tween(Motion.Short)) }, label = "step") { shown ->
             Column(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Spacer(Modifier.height(if (shown == Step.Welcome || shown == Step.Yours) 72.dp else 28.dp))
-                Blob(BlobMood.Idle, size = if (shown == Step.Welcome || shown == Step.Yours) 210.dp else 120.dp, description = agent)
-                Spacer(Modifier.height(20.dp))
                 when (shown) {
                     Step.Welcome -> {
                         Heading("Hi, I’m $agent")
@@ -131,6 +143,7 @@ fun OnboardingScreen(vm: ProviderViewModel, onDone: () -> Unit) {
                         Line("Give your agent a name. You can change it, and its look, later in Settings.")
                         Spacer(Modifier.height(16.dp))
                         VaultField(name, { name = it.take(24) }, "Name", placeholder = agent)
+                        QuietButton("Change look", { lookOpen = true }, Modifier.fillMaxWidth().padding(top = 8.dp), color = k.muted)
                     }
                 }
                 Spacer(Modifier.height(24.dp))

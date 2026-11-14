@@ -83,6 +83,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onOpenRouter: () -> Unit = {},
     onModels: () -> Unit = {},
+    onLook: () -> Unit = {},
     onProvider: () -> Unit = {},
     providerSummary: String = "",
     onWelcome: () -> Unit = {},
@@ -123,6 +124,16 @@ fun SettingsScreen(
                     title = "Provider",
                     subtitle = providerSummary,
                     onClick = onProvider,
+                    chevron = true,
+                )
+            }
+
+            Section("Agent") {
+                val look = io.github.erkanw.vault.mascot.LocalBlobLook.current
+                ActionRow(
+                    title = "Look",
+                    subtitle = listOf(look.shape.label, look.color.label, look.finish.label).joinToString(" · "),
+                    onClick = onLook,
                     chevron = true,
                 )
             }

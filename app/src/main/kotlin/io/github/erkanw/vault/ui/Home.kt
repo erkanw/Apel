@@ -95,7 +95,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /** The places Home leads to. */
-enum class Screen { Home, Chat, Skills, Automation, Settings, OpenRouter, Files, Models, Tools, Provider, Onboarding }
+enum class Screen { Home, Chat, Skills, Automation, Settings, OpenRouter, Files, Models, Tools, Provider, Onboarding, Look }
 
 /** The next automation to run, for its tile on Home. */
 data class NextRun(val name: String, val atMs: Long)

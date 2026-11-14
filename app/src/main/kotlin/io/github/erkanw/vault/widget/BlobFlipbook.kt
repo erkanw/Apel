@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.widget.RemoteViews
+import io.github.erkanw.vault.mascot.BlobLook
 import io.github.erkanw.vault.mascot.BlobShapes
 import io.github.erkanw.vault.mascot.BlobEngine
 import io.github.erkanw.vault.mascot.BlobMood
@@ -55,13 +56,14 @@ object BlobFlipbook {
     }
 
     /** The [LOOP_FRAMES] frames of [mood]'s loop; [variant] picks where Blob glances and when he blinks. */
-    fun frames(mood: BlobMood, px: Int, variant: Int): List<Bitmap> {
+    fun frames(mood: BlobMood, px: Int, variant: Int, look: BlobLook): List<Bitmap> {
         val engine = BlobEngine(seed = 7).apply {
+            setShape(look.shape, still = true)
             loop = LOOP_SECONDS
             loopVariant = variant
             setMood(mood)
         }
-        val painter = BlobPainter(lite = false).apply { haloScale = HALO }
+        val painter = BlobPainter(lite = false).apply { haloScale = HALO; this.look = look }
         // Two loops to let every spring settle into its rhythm.
         repeat(LOOP_FRAMES * 4) { engine.step(STEP) }
         return List(LOOP_FRAMES) { i ->
@@ -74,18 +76,19 @@ object BlobFlipbook {
     }
 
     /** One still frame of [mood], for when the loop is off in Settings. */
-    fun still(mood: BlobMood, px: Int): Bitmap {
-        val engine = BlobEngine(seed = 7).apply { setMood(mood) }
+    fun still(mood: BlobMood, px: Int, look: BlobLook): Bitmap {
+        val engine = BlobEngine(seed = 7).apply { setShape(look.shape, still = true); setMood(mood) }
         engine.step(0f, still = true)
-        return draw(engine, BlobPainter(lite = false).apply { haloScale = HALO }, px)
+        return draw(engine, BlobPainter(lite = false).apply { haloScale = HALO; this.look = look }, px)
     }
 
     private fun draw(engine: BlobEngine, painter: BlobPainter, px: Int): Bitmap {
         val bitmap = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
-        val unit = px / CROP_UNITS
+        // Wide shapes (Pebble, Cloud) take a wider crop, so their sides stay inside the frame.
+        val unit = px / maxOf(CROP_UNITS, engine.hw * 2.5f)
         val canvas = Canvas(bitmap)
         // The body's middle (between its top and the ground line) at the frame's centre.
-        val bodyMid = (BlobShapes.top + 90f) / 2f
+        val bodyMid = (engine.top + 90f) / 2f
         canvas.translate(px / 2f - BlobShapes.ORIGIN_X * unit, px / 2f - (BlobShapes.ORIGIN_Y + bodyMid) * unit)
         painter.draw(canvas, engine, unit, SHADOW)
         return bitmap

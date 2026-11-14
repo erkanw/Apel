@@ -164,6 +164,8 @@ fun SecondaryButton(
     /** True when the button sits on the lift itself (inside a group): it then rests one tone up, on `pressed`. */
     onLift: Boolean = false,
     enabled: Boolean = true,
+    /** An icon 8dp before the text (Randomize’s dices). */
+    leading: (@Composable () -> Unit)? = null,
 ) {
     val k = MaterialTheme.vault
     val rest = if (onLift) k.pressed else k.surfaceHigh
@@ -173,7 +175,12 @@ fun SecondaryButton(
             .semantics { if (!enabled) disabled() }
             .padding(horizontal = 22.dp),
         contentAlignment = Alignment.Center,
-    ) { Text(text, style = VaultType.Label.copy(fontSize = VaultType.Body.fontSize), color = color ?: k.text) }
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (leading != null) { leading(); Spacer(Modifier.width(8.dp)) }
+            Text(text, style = VaultType.Label.copy(fontSize = VaultType.Body.fontSize), color = color ?: k.text)
+        }
+    }
 }
 
 /** A text-only button, for dialogs and quiet actions. */

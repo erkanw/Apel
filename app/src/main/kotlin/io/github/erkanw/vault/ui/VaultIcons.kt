@@ -105,6 +105,14 @@ object VaultIcons {
             path("M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2")
         }
     }
+    /** Lucide dices: Randomize on the Look page. */
+    val Dices by lazy {
+        icon("Dices") {
+            path("M4 10h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z")
+            path("m17.92 14 3.5-3.5a2.24 2.24 0 0 0 0-3l-5-4.92a2.24 2.24 0 0 0-3 0L10 6")
+            path("M6 18h.01"); path("M10 14h.01"); path("M15 6h.01"); path("M18 9h.01")
+        }
+    }
     val Check by lazy { icon("Check") { path("M20 6 9 17l-5-5") } }
 
     /** Stop a running answer (drawn as a filled-looking rounded square outline). */

@@ -64,6 +64,45 @@ internal class BlobEngine(seed: Int = 7) {
     var mood = BlobMood.Idle
         private set
 
+    // ---- The body's shape, morphing point by point from [from] to [to] on a spring (setConfig and step in the original). ----
+    var shape = BlobShape.Mochi
+        private set
+    private var from = BlobShapes.of(shape)
+    private var to = from
+    private var morph = 1f
+    private var morphV = 0f
+
+    /** The outline now (N points), and the face geometry interpolated with it. */
+    val points = FloatArray(BlobShapes.N * 2).also { from.points.copyInto(it) }
+    var top = from.top; private set
+    var hw = from.hw; private set
+    var fy = from.fy; private set
+    var sp = from.sp; private set
+
+    /** A new shape: the body morphs into it and squashes once (the Studio's look change). */
+    fun setShape(next: BlobShape, still: Boolean = false) {
+        if (next == shape) return
+        shape = next
+        from = BlobGeometry(points.copyOf(), top, hw, fy, sp)
+        to = BlobShapes.of(next)
+        morph = if (still) 1f else 0f
+        morphV = 0f
+        if (!still) sV -= 1.8f
+        applyMorph()
+    }
+
+    /** The finish or colour changed: the squash alone. */
+    fun lookChanged() { sV -= 1.8f }
+
+    private fun applyMorph() {
+        val m = morph
+        for (i in points.indices) points[i] = from.points[i] + (to.points[i] - from.points[i]) * m
+        top = from.top + (to.top - from.top) * m
+        hw = from.hw + (to.hw - from.hw) * m
+        fy = from.fy + (to.fy - from.fy) * m
+        sp = from.sp + (to.sp - from.sp) * m
+    }
+
     /** Time since creation and since the mood last changed, in seconds. */
     var t = 0f
         private set
@@ -154,7 +193,7 @@ internal class BlobEngine(seed: Int = 7) {
     private fun burst(n: Int) {
         for (i in 0 until n) {
             val a = (-PI / 2).toFloat() + (i.toFloat() / max(1, n - 1) - 0.5f) * 2.4f + (rand.nextFloat() - 0.5f) * 0.3f
-            sparks.add(Spark(a, BlobShapes.hw * 1.05f + rand.nextFloat() * 16f, -i * 0.04f, 5f + rand.nextFloat() * 5f))
+            sparks.add(Spark(a, hw * 1.05f + rand.nextFloat() * 16f, -i * 0.04f, 5f + rand.nextFloat() * 5f))
         }
         while (sparks.size > 8) sparks.removeAt(0)
     }
@@ -290,11 +329,14 @@ internal class BlobEngine(seed: Int = 7) {
             exprV += (320f * (exprT - expr) - 30f * exprV) * h; expr += exprV * h
             badgeV += (320f * (badgeT - badge) - 16f * badgeV) * h; badge += badgeV * h
             tiltV += (120f * (tiltT - tilt) - 12f * tiltV) * h; tilt += tiltV * h
+            morphV += (200f * (1f - morph) - 17f * morphV) * h; morph += morphV * h
         }
         if (still) {
+            morph = 1f; morphV = 0f
             s = sT; gx = tgx; gy = tgy; bx = tgx; by = tgy; eye = eyeT; expr = exprT; badge = badgeT; tilt = tiltT; ox = 0f; oy = 0f
             sV = 0f; gxV = 0f; gyV = 0f; bxV = 0f; byV = 0f; eyeV = 0f; exprV = 0f; badgeV = 0f; tiltV = 0f; oxV = 0f; oyV = 0f
         }
+        applyMorph()
         if (chev != exprChev && expr < 0.05f) exprChev = chev
         if (exprT > 0) exprChev = chev
         chevrons = exprChev
@@ -370,14 +412,14 @@ internal class BlobEngine(seed: Int = 7) {
         out.tilt = tilt + bx * 2.5f
         out.lift = max(0f, hop - bob + max(0f, -oy * 0.5f))
         // The eyes ride a sphere that turns toward the gaze.
-        val top = BlobShapes.top
-        val rs = BlobShapes.hw * 1.05f
+        val top = this.top
+        val rs = hw * 1.05f
         val yaw = gx * 0.5f
         val pit = gy * 0.38f
-        val cy = BlobShapes.fy - (top + 90f) / 2
+        val cy = fy - (top + 90f) / 2
         for (i in 0..1) {
             val side = if (i == 1) 1f else -1f
-            val a = asin((BlobShapes.sp / rs).coerceIn(-0.95f, 0.95f)) * side
+            val a = asin((sp / rs).coerceIn(-0.95f, 0.95f)) * side
             val b = asin((cy / rs).coerceIn(-0.9f, 0.9f))
             val vx = sin(a) * cos(b)
             val vy = sin(b)

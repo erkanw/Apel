@@ -2,11 +2,14 @@ package io.github.erkanw.vault.mascot
 
 import android.graphics.Bitmap
 import android.graphics.BitmapShader
+import android.graphics.BlendMode
 import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
+import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PorterDuff
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
@@ -21,23 +24,29 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * Draws the blob as it was designed in Blob Atelier: the cloud shape, milk colour, frosted glass finish, capsule eyes, no cheeks.
- * The layers follow agent-mascot.js (base at 0.78, three soft coloured orbs, a white frost veil, grain in soft light, a blurred
- * white edge, a highlight, a white rim). Blurred discs are radial gradients with a Gaussian profile, which is exact for a
- * blurred circle and cheap. The parts that never move against the body (frost, grain, blurred edge) are drawn once into
- * a bitmap per size, so a frame costs a few gradients and paths.
+ * Draws the mascot in any look of Blob Atelier's Blobs series (handbook §4.5): the shape the engine is morphing, one of
+ * six finishes, dot or capsule eyes, blush. Ported from agent-mascot.js: `_build` and `_buildMaterial` (the layers),
+ * `_paint` (their colours) and `_render` (where the moving parts go). SVG blurs become Gaussian-profile radial gradients
+ * for discs and ellipses, and BlurMaskFilter for the stroked edges; SVG's objectBoundingBox gradients become unit-space
+ * gradients mapped onto the body's bounds. The layers that never move against the body (frost, edges, clay's light and
+ * shade, velvet's sheen, jelly's glow) are drawn once into a bitmap per look, size and shape.
  */
 internal class BlobPainter(private val lite: Boolean) {
     /** The listening halo's size: the widget draws it smaller, so it stays inside its cropped frame. */
     var haloScale = 1f
 
-    /**
-     * On a light page: a white rim would vanish, so the edge is a faint ink line instead (the frosted body itself is the
-     * same). The ground shadow's colour comes from the caller.
-     */
+    /** On a light page the glass finish's white rim would vanish: it becomes a faint ink line. */
     var onLight = false
 
-    private val body: Path = BlobShapes.newPath()
+    /** The look to draw. Colours follow it at once; the shape follows the engine (which morphs). */
+    var look: BlobLook = BlobLook.Default
+        set(v) {
+            if (v != field) { field = v; colors = Colors.of(v); overlayKey = null }
+        }
+
+    private var colors = Colors.of(look)
+
+    private val body = Path()
     private val star: Path = BlobShapes.newStar()
     private val scratch = Path()
     private val rect = RectF()
@@ -50,60 +59,7 @@ internal class BlobPainter(private val lite: Boolean) {
         strokeJoin = Paint.Join.ROUND
     }
     private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-
-    /** White at 0.55 with a soft edge, as the original's blurred highlight ellipse (unit circle, stretched when drawn). */
-    private val highlightShader = RadialGradient(
-        0f, 0f, 1f,
-        intArrayOf(0x8CFFFFFF.toInt(), 0x8CFFFFFF.toInt(), 0x40FFFFFF, 0x00FFFFFF),
-        floatArrayOf(0f, 0.55f, 0.8f, 1f),
-        Shader.TileMode.CLAMP,
-    )
-
-    private var overlay: Bitmap? = null
-    private var overlayUnit = 0f
-
-    /**
-     * The frost veil (white 0.2), the grain and the blurred white inner edge, clipped to the body, at the current pixel
-     * scale. Made once per size on a software canvas, where the blur and soft-light blend are exact.
-     */
-    private fun glassOverlay(unit: Float): Bitmap {
-        overlay?.let { if (abs(overlayUnit - unit) < 0.01f) return it }
-        val px = (BlobShapes.UNIT_BOX * unit).toInt().coerceAtLeast(1)
-        val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
-        val oc = Canvas(bmp)
-        oc.translate(BlobShapes.ORIGIN_X * unit, BlobShapes.ORIGIN_Y * unit)
-        oc.scale(unit, unit)
-        oc.clipPath(body)
-        val p = Paint(Paint.ANTI_ALIAS_FLAG)
-        p.color = 0x33FFFFFF // frost 0.2
-        oc.drawRect(-160f, -165f, 160f, 155f, p)
-        if (!lite) {
-            // Grain: fine grey noise; over near-white glass soft light reduces to a faint mottling.
-            val g = Paint().apply {
-                shader = BitmapShader(grainBitmap, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT).also {
-                    it.setLocalMatrix(Matrix().apply { setScale(1 / unit, 1 / unit) })
-                }
-                alpha = (0.06f * 255).toInt()
-            }
-            oc.drawRect(-160f, -165f, 160f, 155f, g)
-        }
-        val s = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            color = 0xFFFFFFFF.toInt()
-            alpha = (0.55f * 255).toInt()
-            strokeWidth = 10f
-            maskFilter = BlurMaskFilter(4f * 1.7f, BlurMaskFilter.Blur.NORMAL)
-        }
-        oc.drawPath(body, s)
-        overlay?.recycle()
-        overlay = bmp
-        overlayUnit = unit
-        return bmp
-    }
-
-    /** Orbs: base colour, then the Gaussian falloff of a disc of radius 1.15 r blurred by sigma 10 units. */
-    private val orbShaders = arrayOfNulls<RadialGradient>(3)
-    private val orbRadius = FloatArray(3)
+    private val grainPaint = Paint().apply { blendMode = BlendMode.SOFT_LIGHT }
 
     private val frame = BlobEngine.Frame()
     private var shadowShader: RadialGradient? = null
@@ -115,22 +71,25 @@ internal class BlobPainter(private val lite: Boolean) {
     fun draw(c: Canvas, e: BlobEngine, unit: Float, shadowColor: Int, errorColor: Int = ERROR_RED) {
         e.frame(frame)
         val f = frame
-        val top = BlobShapes.top
-        val hw = BlobShapes.hw
+        val L = colors
+        val finish = look.finish
+        val top = e.top
+        val hw = e.hw
         val bigH = 90f - top
         val cyB = (top + 90f) / 2
         val t = e.clock
+        BlobShapes.fillPath(body, e.points)
 
         c.save()
         c.translate(BlobShapes.ORIGIN_X * unit, BlobShapes.ORIGIN_Y * unit)
         c.scale(unit, unit)
 
-        // Ground shadow (soft radial ellipse, shrinking as Blob leaves the ground).
+        // Ground shadow (soft radial ellipse, shrinking as the blob leaves the ground), darker under clay, fainter under glass.
         val lift = f.lift
         val srx = hw * 0.9f * f.sx * (1 - lift / 90f)
         val sry = 12f * (1 - lift / 110f)
         if (srx > 0 && sry > 0) {
-            val op = (1 - lift / 70f).coerceIn(0.3f, 1f)
+            val op = (1 - lift / 70f).coerceIn(0.3f, 1f) * L.shadow
             c.save()
             c.translate(f.bodyX * 0.6f, 95f)
             c.scale(srx, sry)
@@ -139,20 +98,17 @@ internal class BlobPainter(private val lite: Boolean) {
                 shadowShaderColor = shadowColor
             }
             fill.shader = shadowShader
-            fill.alpha = (op * 255).toInt()
+            fill.alpha = (op.coerceAtMost(1f) * 255).toInt()
             c.drawCircle(0f, 0f, 1f, fill)
             fill.shader = null
             c.restore()
         }
 
-        // Working: a small satellite orbits. Unlike the original it always passes behind the body, so it never lands on
-        // the face in a still frame; it shows beside Blob and disappears behind it.
-        val working = e.mood == BlobMood.Working
+        // Working: a small satellite orbits, always behind the body, so it never lands on the face in a still frame.
         val an = t * e.hz(3.4f)
-        if (working) drawSatellite(c, an, hw, cyB, f)
+        if (e.mood == BlobMood.Working) drawSatellite(c, an, hw, top, cyB, f)
 
-        // Listening: soft light gathering in toward Blob (two halos shrinking in turn), behind the body and following it.
-        // The original draws outlines here; on a dark ground they read as a cut line, so this keeps the motion, not the line.
+        // Listening: soft light gathering in toward the blob (two halos shrinking in turn), behind the body.
         if (e.mood == BlobMood.Listening) {
             for (i in 0..1) {
                 val u = (t / e.per(1.538f) + i * 0.5f) % 1f
@@ -160,7 +116,7 @@ internal class BlobPainter(private val lite: Boolean) {
                 val a = sin(PI * u).pow(1.5).toFloat() * 0.16f
                 c.save()
                 c.translate(f.bodyX, f.bodyY + cyB)
-                c.scale(hw * sc, (90f - top) * 0.62f * sc)
+                c.scale(hw * sc, bigH * 0.62f * sc)
                 fill.shader = haloShader
                 fill.alpha = (a * 255).toInt()
                 c.drawCircle(0f, 0f, 1f, fill)
@@ -182,48 +138,72 @@ internal class BlobPainter(private val lite: Boolean) {
             c.rotate(-f.dragAngle)
         }
 
-        // Base: milk lifted toward white, a little see-through.
-        fill.color = BASE
-        fill.alpha = (0.78f * 255).toInt()
+        // The base: flat, a gradient over the body's bounds, or (glass) milk lifted toward white and a little see-through.
+        bounds(e.points, top)
+        fill.shader = baseShader(finish, L)
+        fill.color = if (finish == BlobFinish.Glass) L.glassBase else L.base
+        if (fill.shader == null) fill.alpha = if (finish == BlobFinish.Glass) (0.78f * 255).toInt() else 255
+        else fill.alpha = 255
         c.drawPath(body, fill)
+        fill.shader = null
 
+        // The finish, clipped to the body.
         c.save()
         c.clipPath(body)
-        // Three coloured orbs drifting slowly, counter-moving with the body for depth.
-        val orbs = ORB_POS
-        for (i in 0..2) {
-            val px = orbs[i][0] * hw + sin(t * e.hz(0.5f) + i * 2) * 7f
-            val py = (if (i == 2) 90f - bigH * 0.02f else top + bigH * orbs[i][1]) + cos(t * e.hz(0.4f) + i) * 6f
-            val r = orbs[i][2] * hw * 1.15f
-            drawBlurredDisc(c, i, px * 0.92f - f.bodyX, py - f.bodyY * 0.9f, r, 10f, ORB_COLORS[i], 0.85f)
-        }
-        // Frost veil, grain and the soft white inner edge never move with respect to the body: drawn once into a bitmap.
-        c.drawBitmap(glassOverlay(unit), null, BOX, bitmapPaint)
-        // Highlight, sliding against the gaze: an ellipse with a blurred edge (a stretched radial gradient).
         val hx = -e.bx * 7f
         val hy = -e.by * 5f
-        c.save()
-        c.translate(-hw * 0.3f + hx, top + bigH * 0.16f + hy)
-        c.scale(hw * 0.45f + 6f, bigH * 0.08f + 6f)
-        fill.shader = highlightShader
-        fill.alpha = 255
-        c.drawCircle(0f, 0f, 1f, fill)
-        fill.shader = null
-        c.restore()
+        if (finish == BlobFinish.Glass) {
+            for (i in 0..2) {
+                val px = ORB_POS[i][0] * hw + sin(t * e.hz(0.5f) + i * 2) * 7f
+                val py = (if (i == 2) 90f - bigH * 0.02f else top + bigH * ORB_POS[i][1]) + cos(t * e.hz(0.4f) + i) * 6f
+                val r = ORB_POS[i][2] * hw * 1.15f
+                blurredEllipse(c, px * 0.92f - f.bodyX, py - f.bodyY * 0.9f, r, r, 10f, L.orbs[i], 0.85f)
+            }
+        }
+        overlay(unit, e)?.let { c.drawBitmap(it, null, BOX, bitmapPaint) }
+        when (finish) {
+            BlobFinish.Soft -> blurredEllipse(c, -hw * 0.3f + hx, top + bigH * 0.25f + hy, hw * 0.55f, bigH * 0.2f, 10f, WHITE, 0.28f)
+            BlobFinish.Jelly -> {
+                val jx = -hw * 0.42f + hx
+                val jy = top + bigH * 0.24f + hy
+                c.save()
+                c.rotate(-32f, jx, jy)
+                blurredEllipse(c, jx, jy, hw * 0.26f, bigH * 0.11f, 2f, WHITE, 0.92f)
+                c.restore()
+                fill.color = WHITE
+                fill.alpha = (0.95f * 255).toInt()
+                c.drawCircle(-hw * 0.14f + hx * 1.2f, top + bigH * 0.13f + hy, 4.5f, fill)
+            }
+            BlobFinish.Glass -> blurredEllipse(c, -hw * 0.3f + hx, top + bigH * 0.16f + hy, hw * 0.45f, bigH * 0.08f, 4f, WHITE, 0.55f)
+            else -> Unit
+        }
         c.restore()
 
-        // The rim: white on a dark page, a faint ink line on a light one.
-        stroke.color = if (onLight) INK else 0xFFFFFFFF.toInt()
-        stroke.alpha = ((if (onLight) 0.11f else 0.9f) * 255).toInt()
-        stroke.strokeWidth = if (onLight) 1.2f else 1.4f
-        c.drawPath(body, stroke)
+        // A near-black body on a dark page gets a faint light rim, so its silhouette holds (the dark twin of the light-page
+        // rule below).
+        if (!onLight && L.darkBody && finish != BlobFinish.Glass) {
+            stroke.color = WHITE
+            stroke.alpha = (0.12f * 255).toInt()
+            stroke.strokeWidth = 1.2f
+            stroke.maskFilter = null
+            c.drawPath(body, stroke)
+        }
+
+        // Glass has a rim: white on a dark page, a faint ink line on a light one.
+        if (finish == BlobFinish.Glass) {
+            stroke.color = if (onLight) INK else WHITE
+            stroke.alpha = ((if (onLight) 0.11f else 0.9f) * 255).toInt()
+            stroke.strokeWidth = if (onLight) 1.2f else 1.4f
+            stroke.maskFilter = null
+            c.drawPath(body, stroke)
+        }
 
         drawFace(c, e, f)
         c.restore() // body
 
         // Thinking: three thought dots float up beside the head.
         if (e.mood == BlobMood.Thinking) {
-            fill.color = DOTS
+            fill.color = L.dots
             for (i in 0..2) {
                 val dx = hw * 0.62f + i * 15f + f.bodyX
                 val dy = top - 6f - i * 15f + f.bodyY + sin(t * e.hz(3.2f) - i * 0.8f) * 2.5f
@@ -244,14 +224,15 @@ internal class BlobPainter(private val lite: Boolean) {
             fill.color = if (error) errorColor else DONE_GREEN
             fill.alpha = (ba * 255).toInt()
             c.drawCircle(0f, 0f, 15f, fill)
-            stroke.color = 0xFFFFFFFF.toInt()
+            stroke.color = WHITE
             stroke.alpha = (ba * 255).toInt()
             stroke.strokeWidth = 3.6f
+            stroke.maskFilter = null
             scratch.reset()
             if (error) {
                 scratch.moveTo(0f, -7.5f); scratch.lineTo(0f, 1.5f)
                 c.drawPath(scratch, stroke)
-                fill.color = 0xFFFFFFFF.toInt(); fill.alpha = (ba * 255).toInt()
+                fill.color = WHITE; fill.alpha = (ba * 255).toInt()
                 c.drawCircle(0f, 6.6f, 2.1f, fill)
             } else {
                 scratch.moveTo(-6f, 0.5f); scratch.lineTo(-1.8f, 4.6f); scratch.lineTo(6.2f, -4.2f)
@@ -261,7 +242,7 @@ internal class BlobPainter(private val lite: Boolean) {
         }
 
         // Sparkles.
-        fill.color = SPARK
+        fill.color = L.spark
         for (q in e.sparks) {
             if (q.age < 0) continue
             val life = (q.age / 0.8f).coerceIn(0f, 1f)
@@ -277,29 +258,131 @@ internal class BlobPainter(private val lite: Boolean) {
         c.restore()
     }
 
-    private fun drawSatellite(c: Canvas, an: Float, hw: Float, cyB: Float, f: BlobEngine.Frame) {
-        val ox = cos(an) * (hw + 22f)
-        val oy = sin(an) * 20f
-        val rot = (-14 * PI / 180).toFloat()
-        val zx = ox * cos(rot) - oy * sin(rot) + f.bodyX
-        val zy = ox * sin(rot) + oy * cos(rot) + cyB + f.bodyY + 8f
-        // Seen only beside Blob: as it passes behind the body it fades out (the glass is see-through, so drawing it
-        // behind is not enough to keep it off the face).
-        val dx = (zx - f.bodyX) / BlobShapes.hw
-        val dy = (zy - f.bodyY - cyB) / ((90f - BlobShapes.top) / 2f)
-        val outside = ((dx * dx + dy * dy) - 1.0f) / 0.35f
-        val a = outside.coerceIn(0f, 1f)
-        if (a <= 0f) return
-        fill.color = DOTS
-        fill.alpha = (a * 255).toInt()
-        c.drawCircle(zx, zy, 5f + 1.8f * sin(an), fill)
+    // ---- the body's bounds and the base gradients (SVG objectBoundingBox) ----
+
+    private var bx0 = 0f; private var by0 = 0f; private var bw = 1f; private var bh = 1f
+
+    private fun bounds(p: FloatArray, top: Float) {
+        var mn = Float.MAX_VALUE; var mx = -Float.MAX_VALUE
+        for (i in 0 until BlobShapes.N) { mn = min(mn, p[2 * i]); mx = max(mx, p[2 * i]) }
+        bx0 = mn; by0 = top; bw = max(1f, mx - mn); bh = max(1f, 90f - top)
     }
 
+    private val shaders = HashMap<BlobFinish, Shader>()
+    private var shadersFor: Colors? = null
+
+    private fun baseShader(finish: BlobFinish, L: Colors): Shader? {
+        if (shadersFor !== L) { shaders.clear(); shadersFor = L }
+        val s = when (finish) {
+            BlobFinish.Soft -> shaders.getOrPut(finish) { RadialGradient(0.36f, 0.28f, 0.92f, L.softStops, floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP) }
+            BlobFinish.Jelly -> shaders.getOrPut(finish) { LinearGradient(0f, 0f, 0.25f, 1f, L.jellyStops, floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP) }
+            BlobFinish.Velvet -> shaders.getOrPut(finish) { RadialGradient(0.45f, 0.42f, 0.7f, L.velvetStops, floatArrayOf(0f, 0.7f, 1f), Shader.TileMode.CLAMP) }
+            BlobFinish.Clay -> shaders.getOrPut(finish) { RadialGradient(0.4f, 0.3f, 0.95f, L.clayStops, floatArrayOf(0f, 1f), Shader.TileMode.CLAMP) }
+            else -> return null
+        }
+        m.reset(); m.setScale(bw, bh); m.postTranslate(bx0, by0)
+        s.setLocalMatrix(m)
+        return s
+    }
+
+    // ---- the layers that never move against the body, baked per look, size and shape ----
+
+    private var overlay: Bitmap? = null
+    private var overlayKey: String? = null
+
+    private fun overlay(unit: Float, e: BlobEngine): Bitmap? {
+        val finish = look.finish
+        if (finish == BlobFinish.Matte || finish == BlobFinish.Soft) return null
+        val px = (BlobShapes.UNIT_BOX * unit).toInt().coerceAtLeast(1)
+        val key = "$look/$lite/$px/${e.shape}/${e.points[0]}/${e.points[37]}"
+        overlay?.let { if (key == overlayKey) return it }
+        val bmp = overlay?.takeIf { it.width == px && !it.isRecycled } ?: Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888).also { overlay?.recycle() }
+        bmp.eraseColor(0)
+        val oc = Canvas(bmp)
+        oc.translate(BlobShapes.ORIGIN_X * unit, BlobShapes.ORIGIN_Y * unit)
+        oc.scale(unit, unit)
+        oc.clipPath(body)
+        val L = colors
+        val top = e.top
+        val hw = e.hw
+        val bigH = 90f - top
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        val s = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeJoin = Paint.Join.ROUND }
+        // The grain sits in the same clipped group as these layers (an isolated group in the original), so it blends in
+        // soft light with them alone: over bare body it simply lays light-grey noise on top.
+        fun grain() {
+            if (lite) return
+            grainPaint.shader = grainShader(unit)
+            grainPaint.alpha = (L.grain * 255).toInt()
+            oc.drawRect(BOX, grainPaint)
+        }
+        fun blurred(sigma: Float) = BlurMaskFilter(max(0.5f, sigma * 1.73f), BlurMaskFilter.Blur.NORMAL)
+        fun edge(color: Int, width: Float, alpha: Float, sigma: Float, dx: Float = 0f, dy: Float = 0f) {
+            s.color = color; s.alpha = (alpha * 255).toInt(); s.strokeWidth = width; s.maskFilter = blurred(sigma)
+            oc.save(); oc.translate(dx, dy); oc.drawPath(body, s); oc.restore()
+        }
+        when (finish) {
+            BlobFinish.Jelly -> {
+                // A coloured glow low in the body, a deep inner edge, a thin white edge.
+                blurredEllipseOn(oc, hw * 0.08f, 90f - bigH * 0.12f, hw * 0.75f, bigH * 0.2f, 10f, L.glow, 0.5f)
+                edge(L.deep, 18f, 0.35f, 6.5f)
+                edge(WHITE, 4f, 0.4f, 2f)
+            }
+            BlobFinish.Glass -> {
+                p.color = 0x33FFFFFF // frost 0.2
+                oc.drawRect(BOX, p)
+                grain()
+                edge(WHITE, 10f, 0.55f, 4f)
+            }
+            BlobFinish.Clay -> {
+                edge(WHITE, 30f, 0.62f, 6.5f, -9f, -11f)
+                edge(L.clayShade, 34f, 0.3f, 6.5f, 10f, 13f)
+                grain()
+            }
+            BlobFinish.Velvet -> {
+                edge(L.sheen, 26f, 0.75f, 6.5f)
+                edge(WHITE, 6f, 0.28f, 2f)
+                grain()
+            }
+            else -> Unit
+        }
+        overlay = bmp
+        overlayKey = key
+        return bmp
+    }
+
+    private var grain: BitmapShader? = null
+    private var grainUnit = 0f
+
+    private fun grainShader(unit: Float): BitmapShader {
+        grain?.let { if (abs(grainUnit - unit) < 0.01f) return it }
+        return BitmapShader(grainBitmap, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT).also {
+            it.setLocalMatrix(Matrix().apply { setScale(1 / unit, 1 / unit) })
+            grain = it; grainUnit = unit
+        }
+    }
+
+    // ---- the face ----
+
     private fun drawFace(c: Canvas, e: BlobEngine, f: BlobEngine.Frame) {
-        val ew = 15f * e.eye
-        val eh = 30f * e.eye
+        val L = colors
+        val cap = look.eyes == BlobEyes.Capsule
+        val ew = (if (cap) 15f else 21f) * e.eye
+        val eh = (if (cap) 30f else 21f) * e.eye
         val lidS = e.lidS.coerceIn(0.04f, 1.2f)
         val xe = e.expr.coerceIn(0f, 1f)
+        for (i in 0..1) {
+            val side = if (i == 1) 1f else -1f
+            val x = f.eyeX[i]
+            val y = f.eyeY[i]
+            val fs = f.eyeFs[i]
+            // Blush: soft ellipses under and outside the eyes.
+            if (look.blush) {
+                c.save()
+                blurredEllipse(c, x + side * ew * 0.55f, y + (if (cap) eh * 0.5f else eh * 0.62f) + 7f, 12f * fs, 6.5f, 4f, L.cheek, L.cheekAlpha)
+                c.restore()
+            }
+        }
         for (i in 0..1) {
             val side = if (i == 1) 1f else -1f
             val x = f.eyeX[i]
@@ -309,20 +392,20 @@ internal class BlobPainter(private val lite: Boolean) {
             val hh = eh * lidS
             if (xe < 1f) {
                 val a = 1f - xe
-                fill.color = EYE
+                fill.color = L.eye
                 fill.alpha = (a * 255).toInt()
                 val rr = min(w, hh) / 2
                 rect.set(x - w / 2, y - hh / 2, x + w / 2, y + hh / 2)
                 c.drawRoundRect(rect, rr, rr, fill)
-                if (lidS >= 0.5f) {
-                    fill.color = 0xFFFFFFFF.toInt()
+                if (lidS >= 0.5f && L.glint) {
+                    fill.color = WHITE
                     fill.alpha = (0.9f * a * 255).toInt()
                     c.drawCircle(x - w * 0.2f, y - hh * 0.24f, min(w, hh) * 0.16f, fill)
                 }
             }
             if (xe > 0f) {
-                val xw = 11f * fs * e.eye
-                val xh = 9f * e.eye
+                val xw = (if (cap) 11f else 12.5f) * fs * e.eye
+                val xh = (if (cap) 9f else 8f) * e.eye
                 scratch.reset()
                 if (e.chevrons) {
                     scratch.moveTo(x - side * xw * 0.55f, y - xh * 0.75f)
@@ -335,51 +418,125 @@ internal class BlobPainter(private val lite: Boolean) {
                 val ps = 0.85f + 0.15f * xe
                 c.save()
                 c.translate(x, y); c.scale(ps, ps); c.translate(-x, -y)
-                stroke.color = EYE
+                stroke.color = L.eye
                 stroke.alpha = (xe * 255).toInt()
-                stroke.strokeWidth = 7f * e.eye
+                stroke.strokeWidth = (if (cap) 7f else 6.2f) * e.eye
+                stroke.maskFilter = null
                 c.drawPath(scratch, stroke)
                 c.restore()
             }
         }
     }
 
-    /** A disc of radius [r] blurred by [sigma]: a radial gradient with the Gaussian edge profile (0.5 erfc). */
-    private fun drawBlurredDisc(c: Canvas, slot: Int, cx: Float, cy: Float, r: Float, sigma: Float, color: Int, alpha: Float) {
-        val outer = r + 3f * sigma
-        if (orbShaders[slot] == null || abs(orbRadius[slot] - r) > 0.5f) {
-            val n = 9
-            val pos = FloatArray(n + 1)
-            val cols = IntArray(n + 1)
-            val inner = max(0f, r - 3f * sigma)
-            pos[0] = 0f
-            cols[0] = alphaOf(color, alpha * edge(0f, r, sigma))
-            for (k in 1..n) {
-                val d = inner + (outer - inner) * (k - 1) / (n - 1)
-                pos[k] = (d / outer).coerceIn(0f, 1f)
-                cols[k] = alphaOf(color, alpha * edge(d, r, sigma))
-            }
-            orbShaders[slot] = RadialGradient(0f, 0f, outer, cols, pos, Shader.TileMode.CLAMP)
-            orbRadius[slot] = r
-        }
-        m.reset(); m.setTranslate(cx, cy)
-        val sh = orbShaders[slot]!!
-        sh.setLocalMatrix(m)
+    private fun drawSatellite(c: Canvas, an: Float, hw: Float, top: Float, cyB: Float, f: BlobEngine.Frame) {
+        val ox = cos(an) * (hw + 22f)
+        val oy = sin(an) * 20f
+        val rot = (-14 * PI / 180).toFloat()
+        val zx = ox * cos(rot) - oy * sin(rot) + f.bodyX
+        val zy = ox * sin(rot) + oy * cos(rot) + cyB + f.bodyY + 8f
+        // Seen only beside the blob: as it passes behind the body it fades out.
+        val dx = (zx - f.bodyX) / hw
+        val dy = (zy - f.bodyY - cyB) / ((90f - top) / 2f)
+        val a = (((dx * dx + dy * dy) - 1.0f) / 0.35f).coerceIn(0f, 1f)
+        if (a <= 0f) return
+        fill.color = colors.dots
+        fill.alpha = (a * 255).toInt()
+        c.drawCircle(zx, zy, 5f + 1.8f * sin(an), fill)
+    }
+
+    // ---- blurred ellipses: a radial gradient with the Gaussian edge profile, stretched ----
+
+    private val ellipseShaders = HashMap<Int, RadialGradient>()
+
+    private fun blurredEllipse(c: Canvas, cx: Float, cy: Float, rx: Float, ry: Float, sigma: Float, color: Int, alpha: Float) =
+        blurredEllipseOn(c, cx, cy, rx, ry, sigma, color, alpha)
+
+    private fun blurredEllipseOn(c: Canvas, cx: Float, cy: Float, rx: Float, ry: Float, sigma: Float, color: Int, alpha: Float) {
+        if (rx <= 0f || ry <= 0f) return
+        val r = (rx + ry) / 2
+        val rel = (sigma / r).coerceIn(0.02f, 2f)
+        val key = (Math.round(rel * 50) * 31 + 7) xor color xor Math.round(alpha * 100)
+        val sh = ellipseShaders.getOrPut(key) { profile(rel, color, alpha) }
+        val outer = 1f + 3f * rel
+        c.save()
+        c.translate(cx, cy)
+        c.scale(rx, ry)
         fill.shader = sh
         fill.alpha = 255
-        c.drawCircle(cx, cy, outer, fill)
+        c.drawCircle(0f, 0f, outer, fill)
         fill.shader = null
+        c.restore()
+    }
+
+    /** A unit disc blurred by [rel] (sigma over radius), as a radial gradient out to 1 + 3 rel. */
+    private fun profile(rel: Float, color: Int, alpha: Float): RadialGradient {
+        val outer = 1f + 3f * rel
+        val inner = max(0f, 1f - 3f * rel)
+        val n = 9
+        val pos = FloatArray(n + 1)
+        val cols = IntArray(n + 1)
+        pos[0] = 0f
+        cols[0] = alphaOf(color, alpha * edge(0f, 1f, rel))
+        for (k in 1..n) {
+            val d = inner + (outer - inner) * (k - 1) / (n - 1)
+            pos[k] = (d / outer).coerceIn(0f, 1f)
+            cols[k] = alphaOf(color, alpha * edge(d, 1f, rel))
+        }
+        return RadialGradient(0f, 0f, outer, cols, pos, Shader.TileMode.CLAMP)
+    }
+
+    /** The colours of a look (`_paint` in the original). */
+    private class Colors(
+        val base: Int, val glassBase: Int, val eye: Int, val glint: Boolean, val dots: Int, val spark: Int,
+        val cheek: Int, val cheekAlpha: Float, val shadow: Float, val grain: Float,
+        val softStops: IntArray, val jellyStops: IntArray, val velvetStops: IntArray, val clayStops: IntArray,
+        val glow: Int, val deep: Int, val clayShade: Int, val sheen: Int, val orbs: IntArray,
+        /** Close to black (ink): needs the light rim on a dark page. */
+        val darkBody: Boolean,
+    ) {
+        companion object {
+            fun of(look: BlobLook): Colors {
+                val c = Rgb.of(look.color.argb)
+                val w = Rgb.WHITE
+                val ink = Rgb.INK
+                val l = lum(c)
+                val dark = l < 0.18
+                val glass = look.finish == BlobFinish.Glass
+                val hue = rgb2hsl(c)[0] * 360
+                val eye = if (dark && !glass) WHITE else EYE
+                val sat = hueShift(c, 0.0, 0.12)
+                return Colors(
+                    base = c.argb(),
+                    glassBase = mixc(c, w, 0.45).argb(0.78),
+                    eye = eye,
+                    glint = eye != WHITE,
+                    dots = (if (dark) mixc(c, w, 0.55) else mixc(c, ink, 0.38)).argb(),
+                    spark = if (hue > 25 && hue < 75) 0xFFFF8FB3.toInt() else 0xFFFFC53D.toInt(),
+                    cheek = if (dark) 0xFFFF7EA6.toInt() else if (hue > 300 || hue < 20) 0xFFFF5E86.toInt() else 0xFFFF7A93.toInt(),
+                    cheekAlpha = if (dark) 0.32f else 0.26f,
+                    shadow = when (look.finish) { BlobFinish.Clay -> 1.35f; BlobFinish.Glass -> 0.6f; else -> 1f },
+                    grain = when (look.finish) { BlobFinish.Glass -> 0.22f; BlobFinish.Clay -> 0.16f; BlobFinish.Velvet -> 0.32f; else -> 0f },
+                    softStops = intArrayOf(mixc(c, w, if (dark) 0.22 else 0.42).argb(), c.argb(), mixc(c, ink, if (dark) 0.1 else 0.2).argb()),
+                    jellyStops = intArrayOf(mixc(sat, w, 0.3).argb(), sat.argb(), mixc(hueShift(c, -6.0, 0.18), ink, 0.24).argb()),
+                    velvetStops = intArrayOf(mixc(c, ink, if (dark) 0.0 else 0.16).argb(), c.argb(), mixc(c, w, 0.18).argb()),
+                    clayStops = intArrayOf(mixc(c, w, 0.12).argb(), c.argb()),
+                    glow = mixc(hueShift(c, 8.0, 0.15, 0.05), w, 0.35).argb(),
+                    deep = mixc(c, ink, 0.5).argb(),
+                    clayShade = mixc(c, Rgb(150.0, 80.0, 60.0), 0.4).argb(),
+                    sheen = mixc(c, w, if (dark) 0.25 else 0.45).argb(),
+                    darkBody = l < 0.06,
+                    orbs = intArrayOf(hueShift(c, 0.0, 0.15, -0.06).argb(), hueShift(c, 40.0, 0.2, -0.02).argb(), hueShift(c, -45.0, 0.15).argb()),
+                )
+            }
+        }
     }
 
     companion object {
-        private val BASE = 0xFFF8F5F0.toInt()             // milk #F2ECE4 mixed 45% toward white
-        private val ORB_COLORS = intArrayOf(0xFFEDDECA.toInt(), 0xFFEDF4D8.toInt(), 0xFFF5E1E5.toInt()) // milk hue-shifted 0, +40, -45 deg
         private val ORB_POS = arrayOf(floatArrayOf(-0.75f, 0.3f, 0.55f), floatArrayOf(0.72f, 0.62f, 0.5f), floatArrayOf(-0.05f, 0f, 0.4f))
+        private const val WHITE = 0xFFFFFFFF.toInt()
         private val EYE = 0xFF1E1C24.toInt()
-        /** The original's shadow ink (#2a2140), for the rim on a light page. */
+        /** The original's shadow ink (#2a2140), for the glass rim on a light page. */
         private val INK = 0xFF2A2140.toInt()
-        private val DOTS = 0xFFA59CA6.toInt()
-        private val SPARK = 0xFFFF8FB3.toInt()
         private val DONE_GREEN = 0xFF30C77B.toInt()
         internal val ERROR_RED = 0xFFFF5A4E.toInt()
 
@@ -403,12 +560,15 @@ internal class BlobPainter(private val lite: Boolean) {
             return if (x >= 0) r else 2 - r
         }
 
-        /** Fine grey noise for the frosted grain, made once. */
+        /**
+         * Grey noise for the grain, made once. The original's feTurbulence noise is about 0.5 in linear light, so it shows as
+         * a light grey near sRGB 187, varying a little from pixel to pixel.
+         */
         private val grainBitmap: Bitmap by lazy {
             val size = 128
             val rnd = Random(9)
             val px = IntArray(size * size) {
-                val v = (100 + rnd.nextInt(56) + rnd.nextInt(56)).coerceIn(0, 255)
+                val v = (163 + rnd.nextInt(25) + rnd.nextInt(25)).coerceIn(0, 255)
                 (0xFF shl 24) or (v shl 16) or (v shl 8) or v
             }
             Bitmap.createBitmap(px, size, size, Bitmap.Config.ARGB_8888)
