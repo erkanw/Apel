@@ -36,6 +36,18 @@ object AgentProfile {
         _name.value = name(context)
     }
 
+    // ---- the agent’s rules (PLAN §7.2): Instructions (AGENT.md) and About you (USER.md), edited in Settings → Agent ----
+
+    private fun rules(context: Context, file: String) = java.io.File(java.io.File(context.filesDir, "agent").apply { mkdirs() }, file)
+
+    fun instructions(context: Context): String = rules(context, "AGENT.md").takeIf { it.isFile }?.readText().orEmpty()
+    fun setInstructions(context: Context, text: String) = rules(context, "AGENT.md").writeText(text.trim().take(MAX_RULES))
+    fun aboutYou(context: Context): String = rules(context, "USER.md").takeIf { it.isFile }?.readText().orEmpty()
+    fun setAboutYou(context: Context, text: String) = rules(context, "USER.md").writeText(text.trim().take(MAX_RULES))
+
+    /** Each rules file is capped, so it can’t crowd out the chat. */
+    const val MAX_RULES = 8_000
+
     fun welcomeDone(context: Context): Boolean = prefs(context).getBoolean(KEY_WELCOME, false)
 
     fun setWelcomeDone(context: Context, done: Boolean) = prefs(context).edit { putBoolean(KEY_WELCOME, done) }

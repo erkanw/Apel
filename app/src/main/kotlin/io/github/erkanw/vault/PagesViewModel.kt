@@ -71,6 +71,17 @@ class PagesViewModel(app: Application) : AndroidViewModel(app) {
         ::loadSkills,
     ) { backend.setSkillEnabled(skill.name, enabled) }
 
+    /** Saves a new or edited skill, then reloads the list; [onDone] gets null, or the reason it failed. */
+    fun saveSkill(name: String, description: String, instructions: String, onDone: (String?) -> Unit) {
+        viewModelScope.launch {
+            val error = try { backend.saveSkill(name, description, instructions); null } catch (e: Exception) { e.message ?: "Couldn’t save the skill." }
+            onDone(error)
+            if (error == null) loadSkills()
+        }
+    }
+
+    suspend fun skillText(name: String) = runCatching { backend.skillText(name) }.getOrNull()
+
     fun deleteSkill(skill: SkillInfo) = act(
         _skills,
         { list -> list.filterNot { it.name == skill.name } },

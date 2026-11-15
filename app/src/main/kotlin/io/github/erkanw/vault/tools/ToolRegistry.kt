@@ -17,7 +17,7 @@ object ToolRegistry {
 
     val tools: List<Tool> = listOf(
         WebFetchTool, FileTools.List, FileTools.Read, FileTools.Write, FileTools.Edit, FileTools.Move, FileTools.Delete,
-        FileTools.Search, MemoryTools.Read, MemoryTools.Write, TimeTool, NotifyTool,
+        FileTools.Search, MemoryTools.Read, MemoryTools.Write, SkillStore.ListTool, SkillStore.ReadTool, SkillStore.SaveTool, TimeTool, NotifyTool,
     )
 
     fun tool(name: String): Tool? = tools.firstOrNull { it.name == name }

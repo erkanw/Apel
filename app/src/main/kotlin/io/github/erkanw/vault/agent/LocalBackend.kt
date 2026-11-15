@@ -41,6 +41,7 @@ import io.github.erkanw.vault.store.SessionEntity
 import io.github.erkanw.vault.store.StepEntity
 import io.github.erkanw.vault.store.UsageEntity
 import io.github.erkanw.vault.tools.MemoryTools
+import io.github.erkanw.vault.tools.SkillStore
 import io.github.erkanw.vault.tools.ToolContext
 import io.github.erkanw.vault.tools.ToolException
 import io.github.erkanw.vault.tools.ToolLevel
@@ -248,7 +249,10 @@ class LocalBackend(context: Context) : AgentBackend {
                 // Where in this round's text OpenRouter's web search came in (-1: no search yet).
                 var searchCut = -1
                 val messages = JSONArray()
-                    .put(JSONObject().put("role", "system").put("content", systemPrompt(AgentProfile.name(app), ZonedDateTime.now(), input.channelNote, MemoryTools.forPrompt(app), tools.length() > 0)))
+                    .put(JSONObject().put("role", "system").put("content", systemPrompt(
+                        AgentProfile.name(app), ZonedDateTime.now(), input.channelNote, MemoryTools.forPrompt(app), tools.length() > 0,
+                        AgentProfile.instructions(app), AgentProfile.aboutYou(app), SkillStore.index(app),
+                    )))
                 history.filter { keep(it) }.forEach { h -> messages.put(JSONObject().put("role", h.message.role).put("content", historyText(h))) }
                 messages.put(JSONObject().put("role", "user").put("content", content))
                 rounds.forEach { messages.put(it) }
@@ -552,9 +556,16 @@ class LocalBackend(context: Context) : AgentBackend {
 
     override suspend fun files(path: String): FileListing = FileListing(path, emptyList())
     override suspend fun download(path: String, zip: Boolean, out: OutputStream): Long = later()
-    override suspend fun skills(): List<SkillInfo> = emptyList()
-    override suspend fun setSkillEnabled(name: String, enabled: Boolean) = later()
-    override suspend fun deleteSkill(name: String) = later()
+    override suspend fun skills(): List<SkillInfo> = SkillStore.all(app).map { s ->
+        SkillInfo(s.name, s.description, s.enabled, available = true, deletable = !s.builtIn, source = if (s.builtIn) "Built in" else "", unavailableReason = "")
+    }
+    override suspend fun setSkillEnabled(name: String, enabled: Boolean) = SkillStore.setEnabled(app, name, enabled)
+    override suspend fun deleteSkill(name: String) = wrap { SkillStore.delete(app, name) }
+    override suspend fun skillText(name: String): Pair<String, String>? = SkillStore.get(app, name)?.let { it.description to it.body }
+    override suspend fun saveSkill(name: String, description: String, instructions: String) = wrap { SkillStore.save(app, name, description, instructions) }
+
+    /** A tool-store error as a chat error, so the page shows its sentence. */
+    private inline fun <T> wrap(block: () -> T): T = try { block() } catch (e: ToolException) { throw ChatException(e.message ?: "That didn’t work.") }
     override suspend fun builtInTools(): List<BuiltInTool> {
         val kind = ProviderStore.state.value.kind
         return ToolRegistry.entries(app, kind).map { e ->

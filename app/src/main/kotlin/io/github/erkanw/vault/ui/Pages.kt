@@ -2,6 +2,7 @@
 
 package io.github.erkanw.vault.ui
 
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -122,6 +123,10 @@ fun SkillsScreen(
     val state by vm.skills.collectAsStateWithLifecycle()
     var deleting by remember { mutableStateOf<SkillInfo?>(null) }
     var creating by remember { mutableStateOf(false) }
+    // A skill of yours being edited: its name, description and instructions.
+    var editing by remember { mutableStateOf<Triple<String, String, String>?>(null) }
+    var saveError by remember { mutableStateOf<String?>(null) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val tracker = rememberEntranceTracker()
     LaunchedEffect(Unit) { vm.loadSkills() }
 
@@ -137,7 +142,10 @@ fun SkillsScreen(
                     VaultGroup(Modifier.entrance("skills", 0, tracker, dx = 0.dp, dy = 8.dp).navigationBarsPadding()) {
                         skills.forEachIndexed { i, skill ->
                             if (i > 0) GroupDivider()
-                            SkillRow(skill, onToggle = { vm.setSkillEnabled(skill, it) }, onDelete = { deleting = skill })
+                            SkillRow(
+                                skill, onToggle = { vm.setSkillEnabled(skill, it) }, onDelete = { deleting = skill },
+                                onEdit = { scope.launch { vm.skillText(skill.name)?.let { (d, b) -> saveError = null; editing = Triple(skill.name, d, b) } } },
+                            )
                         }
                     }
                 }
@@ -148,16 +156,26 @@ fun SkillsScreen(
         NewSkillSheet(
             taken = state.items.map { it.name }.toSet(),
             onCreate = { slug, description, instructions ->
-                creating = false
-                onRequestInNewChat(io.github.erkanw.vault.chat.createSkillRequest(slug, description, instructions))
+                vm.saveSkill(slug, description, instructions) { e -> saveError = e; if (e == null) creating = false }
             },
-            onDismiss = { creating = false },
+            onDismiss = { creating = false; saveError = null },
+            error = saveError,
+        )
+    }
+    editing?.let { (name, description, body) ->
+        NewSkillSheet(
+            taken = state.items.map { it.name }.toSet() - name,
+            onCreate = { _, d, instructions ->
+                vm.saveSkill(name, d, instructions) { e -> saveError = e; if (e == null) editing = null }
+            },
+            onDismiss = { editing = null; saveError = null },
+            editing = name, initialDescription = description, initialInstructions = body, error = saveError,
         )
     }
     deleting?.let { skill ->
         ConfirmDialog(
             title = "Delete ${skill.name}?",
-            message = "The skill is removed for good. To keep it but stop ${LocalAgentName.current} using it, turn it off instead.",
+            message = "It moves to the Trash. To keep it but stop ${LocalAgentName.current} using it, turn it off instead.",
             confirm = "Delete skill",
             onConfirm = {
                 vm.deleteSkill(skill)
@@ -170,7 +188,7 @@ fun SkillsScreen(
 
 /** A skill: its name and where it comes from, what it does, and its switch; a deletable one has a menu. */
 @Composable
-private fun SkillRow(skill: SkillInfo, onToggle: (Boolean) -> Unit, onDelete: () -> Unit) {
+private fun SkillRow(skill: SkillInfo, onToggle: (Boolean) -> Unit, onDelete: () -> Unit, onEdit: () -> Unit = {}) {
     val k = MaterialTheme.vault
     var menuOpen by remember { mutableStateOf(false) }
     val canToggle = skill.available || skill.enabled
@@ -212,6 +230,7 @@ private fun SkillRow(skill: SkillInfo, onToggle: (Boolean) -> Unit, onDelete: ()
                     expanded = menuOpen, onDismissRequest = { menuOpen = false },
                     shape = RoundedCornerShape(16.dp), containerColor = k.pressed, tonalElevation = 0.dp, shadowElevation = 0.dp,
                 ) {
+                    MenuItem(VaultIcons.Pencil, "Edit") { menuOpen = false; onEdit() }
                     MenuItem(VaultIcons.Trash, "Delete", color = k.danger) { menuOpen = false; onDelete() }
                 }
             }

@@ -129,10 +129,9 @@ fun SettingsScreen(
             }
 
             Section("Agent") {
-                val look = io.github.erkanw.vault.mascot.LocalBlobLook.current
                 ActionRow(
-                    title = "Look",
-                    subtitle = listOf(look.shape.label, look.color.label, look.finish.label).joinToString(" · "),
+                    title = agent,
+                    subtitle = "Name, look, instructions, about you and memory",
                     onClick = onLook,
                     chevron = true,
                 )

@@ -78,6 +78,12 @@ interface AgentBackend {
     suspend fun setSkillEnabled(name: String, enabled: Boolean)
     suspend fun deleteSkill(name: String)
 
+    /** A skill’s description and instructions, to edit it (null: not known here). */
+    suspend fun skillText(name: String): Pair<String, String>? = null
+
+    /** Saves a new or edited skill. */
+    suspend fun saveSkill(name: String, description: String, instructions: String): Unit = throw io.github.erkanw.vault.chat.ChatException("Skills can’t be saved here.")
+
     // ---- tools ----
     suspend fun builtInTools(): List<BuiltInTool>
     suspend fun mcpServers(): List<McpServer>

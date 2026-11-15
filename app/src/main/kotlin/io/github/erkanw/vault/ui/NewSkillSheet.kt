@@ -33,21 +33,27 @@ fun NewSkillSheet(
     taken: Set<String>,
     onCreate: (slug: String, description: String, instructions: String) -> Unit,
     onDismiss: () -> Unit,
+    /** Editing one of your skills: its name stays, its text is filled in. */
+    editing: String? = null,
+    initialDescription: String = "",
+    initialInstructions: String = "",
+    /** Why the last save failed, in a line. */
+    error: String? = null,
 ) {
     val k = MaterialTheme.vault
-    var name by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var instructions by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf(editing.orEmpty()) }
+    var description by remember { mutableStateOf(initialDescription) }
+    var instructions by remember { mutableStateOf(initialInstructions) }
     var tried by remember { mutableStateOf(false) }
     val slug = skillSlug(name)
     val problem = skillProblem(name, description, instructions, taken)
 
-    VaultSheet(onDismiss = onDismiss, title = "New skill") {
+    VaultSheet(onDismiss = onDismiss, title = if (editing != null) editing else "New skill") {
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            VaultField(
+            if (editing == null) VaultField(
                 name, { name = it.take(48) }, "Name", placeholder = "study-planner",
                 supporting = if (slug.isNotEmpty() && slug != name.trim()) "Saved as $slug" else null,
                 isError = tried && (slug.isEmpty() || slug in taken),
@@ -63,14 +69,10 @@ fun NewSkillSheet(
                 placeholder = "Step by step, what ${LocalAgentName.current} should do when it uses this skill.",
                 isError = tried && instructions.isBlank(),
             )
-            Text(
-                "${LocalAgentName.current} saves new skills itself. This opens a new chat with a request for it to save this one in its " +
-                    "skills folder. You read it and send it.",
-                style = VaultType.Caption, color = k.muted,
-            )
             if (tried && problem != null) Text(problem, style = VaultType.Caption, color = k.attention)
+            if (error != null) Text(error, style = VaultType.Caption, color = k.attention)
             PrimaryButton(
-                "Open a new chat",
+                if (editing != null) "Save" else "Save skill",
                 onClick = {
                     tried = true
                     if (problem == null) onCreate(slug, description.trim(), instructions.trim())

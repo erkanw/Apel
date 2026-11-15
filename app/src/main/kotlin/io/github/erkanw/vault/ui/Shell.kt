@@ -109,6 +109,7 @@ fun VaultApp(
         if (screen == Screen.Files && pages.folderUp()) return@BackHandler
         screenName = when (screen) {
             Screen.OpenRouter, Screen.Models, Screen.Look -> openedFrom
+            Screen.Agent -> Screen.Settings.name
             Screen.Provider -> providerFrom
             else -> Screen.Home.name
         }
@@ -251,7 +252,7 @@ fun VaultApp(
                         onBack = back,
                         onOpenRouter = { go(Screen.OpenRouter) },
                         onModels = { go(Screen.Models) },
-                        onLook = { go(Screen.Look) },
+                        onLook = { screenName = Screen.Agent.name },
                         onProvider = { providerFrom = Screen.Settings.name; screenName = Screen.Provider.name },
                         providerSummary = when (providerState.kind) {
                             io.github.erkanw.vault.provider.ProviderKind.OpenRouter -> "OpenRouter"
@@ -269,6 +270,7 @@ fun VaultApp(
                     Screen.Models -> ModelsScreen(settings, onBack = { screenName = openedFrom }, onSettings = { screenName = Screen.Provider.name })
                     Screen.Provider -> ProviderScreen(provider, onBack = { screenName = providerFrom }, onModels = { go(Screen.Models) }, onUsage = { go(Screen.OpenRouter) })
                     Screen.Look -> LookScreen(onBack = { screenName = openedFrom })
+                    Screen.Agent -> AgentScreen(onBack = { screenName = Screen.Settings.name }, onLook = { go(Screen.Look) })
                     Screen.Onboarding -> OnboardingScreen(provider, onDone = {
                         vm.refreshComposerExtras()
                         screenName = Screen.Home.name
@@ -282,6 +284,7 @@ fun VaultApp(
 /** How deep a screen is in the stack: the home screen at the bottom, the usage page (reached from Settings) on top. */
 private fun depthOf(screen: Screen): Int = when (screen) {
     Screen.Home -> 0
-    Screen.OpenRouter, Screen.Models, Screen.Provider, Screen.Look -> 2
+    Screen.OpenRouter, Screen.Models, Screen.Provider, Screen.Agent -> 2
+    Screen.Look -> 3
     else -> 1
 }
