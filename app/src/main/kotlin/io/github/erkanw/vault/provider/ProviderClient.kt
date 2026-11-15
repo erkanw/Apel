@@ -6,7 +6,6 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.job
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -23,6 +22,10 @@ sealed interface StreamPart {
     data class Reasoning(val text: String) : StreamPart
     /** The tokens and (OpenRouter) the cost of the call, at the end of the stream. */
     data class Usage(val promptTokens: Long, val completionTokens: Long, val cost: Double?) : StreamPart
+    /** A piece of a tool call: the call at [index] gets its [id] and [name] once, then its arguments in [args] chunks. */
+    data class ToolCall(val index: Int, val id: String?, val name: String?, val args: String) : StreamPart
+    /** A source the answer cites (OpenRouter’s web search results, as `url_citation` annotations). */
+    data class Citation(val url: String, val title: String) : StreamPart
 }
 
 /** What one request asks for. [messages] are OpenAI-style chat messages. */
@@ -32,6 +35,8 @@ class ChatRequest(
     val maxTokens: Long = 0L,
     /** OpenRouter only: route to providers that keep no data (PLAN §2.1). */
     val privateOnly: Boolean = false,
+    /** The tools the model may call: OpenAI-style function tools, and OpenRouter server tools such as web search. */
+    val tools: JSONArray? = null,
 )
 
 /** The JSON body of a streamed chat completion for [kind]. */
@@ -40,6 +45,7 @@ fun requestBody(kind: ProviderKind, request: ChatRequest): JSONObject = JSONObje
     put("messages", request.messages)
     put("stream", true)
     if (request.maxTokens > 0) put("max_tokens", request.maxTokens)
+    if (request.tools != null && request.tools.length() > 0) put("tools", request.tools)
     if (kind == ProviderKind.OpenRouter) {
         put("usage", JSONObject().put("include", true))
         if (request.privateOnly) put("provider", JSONObject().put("zdr", true).put("data_collection", "deny"))
@@ -69,6 +75,25 @@ fun parseStreamData(data: String, model: String, openRouter: Boolean): List<Stre
         if (reasoning != null) out += StreamPart.Reasoning(reasoning)
         val content = if (delta.isNull("content")) "" else delta.optString("content")
         if (content.isNotEmpty()) out += StreamPart.Text(content)
+        delta.optJSONArray("annotations")?.let { notes ->
+            for (i in 0 until notes.length()) {
+                val c = notes.optJSONObject(i)?.optJSONObject("url_citation") ?: continue
+                val url = c.optString("url")
+                if (url.isNotBlank()) out += StreamPart.Citation(url, c.optString("title"))
+            }
+        }
+        delta.optJSONArray("tool_calls")?.let { calls ->
+            for (i in 0 until calls.length()) {
+                val c = calls.optJSONObject(i) ?: continue
+                val fn = c.optJSONObject("function")
+                out += StreamPart.ToolCall(
+                    index = c.optInt("index", i),
+                    id = c.optString("id").takeIf { !c.isNull("id") && it.isNotEmpty() },
+                    name = fn?.optString("name")?.takeIf { !fn.isNull("name") && it.isNotEmpty() },
+                    args = if (fn == null || fn.isNull("arguments")) "" else fn.optString("arguments"),
+                )
+            }
+        }
     }
     o.optJSONObject("usage")?.let { u ->
         val cost = if (u.has("cost") && !u.isNull("cost")) u.optDouble("cost") else null
@@ -105,29 +130,31 @@ object ProviderClient {
         val host = ProviderEndpoints.hostOf(target.baseUrl) ?: "the server"
         val body = requestBody(target.kind, request).toString().toRequestBody("application/json".toMediaType())
         val call = http.newCall(builder(target, "/chat/completions").header("Accept", "text/event-stream").post(body).build())
-        currentCoroutineContext().job.invokeOnCompletion { call.cancel() }
-        val response = try { call.execute() } catch (e: IOException) {
-            currentCoroutineContext().ensureActive()
-            throw networkError(e, host)
-        }
-        response.use {
-            if (!response.isSuccessful) {
-                throw providerError(response.code, errorDetailOf(response.body?.string().orEmpty()), openRouter, request.model)
-            }
-            val source = response.body?.source() ?: throw ProviderException("The provider sent nothing back.", fallback = true)
-            try {
-                while (true) {
-                    currentCoroutineContext().ensureActive()
-                    val line = source.readUtf8Line() ?: break
-                    // Lines that start with ":" are comments (OpenRouter's "processing" keep-alives).
-                    if (!line.startsWith("data:")) continue
-                    val data = line.removePrefix("data:")
-                    if (data.trim() == "[DONE]") break
-                    for (part in parseStreamData(data, request.model, openRouter)) emit(part)
-                }
-            } catch (e: IOException) {
+        // Stop ends the call at once, even while a thread waits on it.
+        cancelling(call) {
+            val response = try { call.execute() } catch (e: IOException) {
                 currentCoroutineContext().ensureActive()
                 throw networkError(e, host)
+            }
+            response.use {
+                if (!response.isSuccessful) {
+                    throw providerError(response.code, errorDetailOf(response.body?.string().orEmpty()), openRouter, request.model)
+                }
+                val source = response.body?.source() ?: throw ProviderException("The provider sent nothing back.", fallback = true)
+                try {
+                    while (true) {
+                        currentCoroutineContext().ensureActive()
+                        val line = source.readUtf8Line() ?: break
+                        // Lines that start with ":" are comments (OpenRouter's "processing" keep-alives).
+                        if (!line.startsWith("data:")) continue
+                        val data = line.removePrefix("data:")
+                        if (data.trim() == "[DONE]") break
+                        for (part in parseStreamData(data, request.model, openRouter)) emit(part)
+                    }
+                } catch (e: IOException) {
+                    currentCoroutineContext().ensureActive()
+                    throw networkError(e, host)
+                }
             }
         }
     }.flowOn(Dispatchers.IO)

@@ -6,7 +6,7 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 
 /** A provider error: the line to show, and whether trying the next model could help (PLAN §7.3). */
-class ProviderException(message: String, val fallback: Boolean = false, val status: Int = 0) : IOException(message)
+class ProviderException(message: String, val fallback: Boolean = false, val status: Int = 0, /** What the provider said, as it said it. */ val detail: String = "") : IOException(message)
 
 /**
  * The words for a provider error (handbook §6): what happened and the one thing to do. 402 and 429 never fall back to
@@ -34,7 +34,7 @@ fun providerError(status: Int, detail: String, openRouter: Boolean, model: Strin
         else -> "The provider answered $status${if (detail.isBlank()) "." else ": $detail"}"
     }
     val fallback = status == 404 || status == 408 || status in 500..599
-    return ProviderException(text, fallback = fallback, status = status)
+    return ProviderException(text, fallback = fallback, status = status, detail = detail)
 }
 
 /** A network failure in a line, with what usually helps. Worth trying the next model only on a timeout. */

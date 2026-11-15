@@ -82,6 +82,9 @@ interface AgentBackend {
     suspend fun builtInTools(): List<BuiltInTool>
     suspend fun mcpServers(): List<McpServer>
     suspend fun setBuiltInTool(path: String, on: Boolean)
+
+    /** Sets a built-in tool’s level; a backend without levels just switches it on or off. */
+    suspend fun setToolLevel(path: String, level: io.github.erkanw.vault.tools.ToolLevel) = setBuiltInTool(path, level != io.github.erkanw.vault.tools.ToolLevel.Off)
     suspend fun setMcpTools(server: String, enabledTools: List<String>)
 
     // ---- automations ----

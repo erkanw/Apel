@@ -18,10 +18,10 @@ import io.github.erkanw.vault.store.AgentProfile
 /**
  * Runs while the agent is answering, and does nothing else: a foreground service keeps Android from suspending the app
  * when the screen locks or you switch to another app, which would cut long answers off. It shows the quiet "Working"
- * notification (PLAN §6.13) and holds a wake lock for at most ten minutes. The turn itself runs in [ChatViewModel] until
- * Phase 3 moves it into AgentService.
+ * notification (PLAN §6.13) and holds a wake lock for at most ten minutes. A chat's turn runs in [ChatViewModel], kept alive
+ * by this service; automations (Phase 5) run their turns here.
  */
-class ReplyService : Service() {
+class AgentService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -30,7 +30,7 @@ class ReplyService : Service() {
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(
             NotificationChannel(CHANNEL, getString(R.string.channel_working), NotificationManager.IMPORTANCE_LOW).apply {
-                description = getString(R.string.channel_working_description, AgentProfile.name(this@ReplyService))
+                description = getString(R.string.channel_working_description, AgentProfile.name(this@AgentService))
                 setShowBadge(false)
             },
         )
@@ -72,7 +72,7 @@ class ReplyService : Service() {
     }
 
     companion object {
-        private const val TAG = "ReplyService"
+        private const val TAG = "AgentService"
         private const val CHANNEL = "reply"
         private const val NOTIFICATION_ID = 1
         private const val WAKE_LOCK_MS = 10 * 60_000L
@@ -83,7 +83,7 @@ class ReplyService : Service() {
 
         fun start(context: Context) {
             try {
-                ContextCompat.startForegroundService(context, Intent(context, ReplyService::class.java))
+                ContextCompat.startForegroundService(context, Intent(context, AgentService::class.java))
                 requested = true
             } catch (e: Exception) {
                 // Not allowed right now (or no notification permission handling): the chat still works, it just
@@ -101,9 +101,9 @@ class ReplyService : Service() {
             if (!requested) return
             requested = false
             try {
-                context.startService(Intent(context, ReplyService::class.java).setAction(ACTION_STOP))
+                context.startService(Intent(context, AgentService::class.java).setAction(ACTION_STOP))
             } catch (e: Exception) {
-                context.stopService(Intent(context, ReplyService::class.java))
+                context.stopService(Intent(context, AgentService::class.java))
             }
         }
     }

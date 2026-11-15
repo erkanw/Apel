@@ -1,6 +1,7 @@
 package io.github.erkanw.vault.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -51,6 +52,8 @@ fun ApprovalCard(
     onAllow: (always: Boolean) -> Unit,
     onDeny: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Offer "Always allow this tool" (only when the tool’s level is what asks). */
+    allowAlways: Boolean = true,
 ) {
     val k = MaterialTheme.vault
     var always by remember(request.id) { mutableStateOf(false) }
@@ -59,6 +62,8 @@ fun ApprovalCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .background(k.surfaceHigh)
+            // Capped by the chat; what doesn’t fit scrolls inside the card.
+            .then(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()))
             .padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -83,8 +88,8 @@ fun ApprovalCard(
             Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(k.line))
             ChoiceRow("Deny", k.danger, enabled = !sending, onClick = onDeny)
         }
-        Spacer(Modifier.height(4.dp))
-        Row(
+        if (allowAlways) Spacer(Modifier.height(4.dp))
+        if (allowAlways) Row(
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = 48.dp)

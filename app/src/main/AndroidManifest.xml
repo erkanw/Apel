@@ -4,7 +4,7 @@
     <!-- The AI provider the user chose, web pages the agent reads, and tool servers the user adds. Nothing else. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- Keep the app alive while the agent answers (ReplyService). -->
+    <!-- Keep the app alive while the agent answers (AgentService). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -52,7 +52,7 @@
         </activity>
 
         <service
-            android:name=".ReplyService"
+            android:name=".AgentService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 

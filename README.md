@@ -5,8 +5,9 @@ tools, databases and memory live in the app. You connect your own AI provider (O
 OpenAI-compatible server) and pay it directly, only for what you use. There is no server, no account with the maker
 and no telemetry.
 
-> **Status: early development.** The app's screens are in place and run on sample data (demo mode, debug builds). The
-> on-device agent, provider sign-in and the features below arrive in stages; nothing is released yet.
+> **Status: early development.** You can sign in to OpenRouter (or your own server) and chat with an agent that searches
+> the web, reads pages, keeps notes and remembers things, asking first before risky steps. Skills, automations,
+> databases and the rest arrive in stages; nothing is released yet.
 
 ## What it will do
 

@@ -38,11 +38,15 @@ import io.github.erkanw.vault.PageState
 import io.github.erkanw.vault.chat.BuiltInTool
 import io.github.erkanw.vault.chat.McpServer
 import io.github.erkanw.vault.chat.serverSubtitle
+import io.github.erkanw.vault.tools.ToolLevel
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 
 /**
- * What the agent can use: the built-in tools (web search, pages, files...) and the tool servers it is connected to, each
- * switched on and off like skills and automations. A server opens to its tools, one switch each. Changes apply to every
- * chat. (Phase 3 gives each built-in tool a level: Allowed, Ask first, Off.)
+ * What the agent can use: the built-in tools (web search, pages, files...) and the tool servers it is connected to. A
+ * built-in tool opens a sheet with its level (Allowed, Ask first, Off; PLAN §7.5); a server opens to its tools, one switch
+ * each. Changes apply to every chat.
  */
 @Composable
 fun ToolsScreen(vm: PagesViewModel, onBack: () -> Unit) {
@@ -50,10 +54,10 @@ fun ToolsScreen(vm: PagesViewModel, onBack: () -> Unit) {
     val builtIn by vm.builtInTools.collectAsStateWithLifecycle()
     val servers by vm.mcpServers.collectAsStateWithLifecycle()
     var open by remember { mutableStateOf<String?>(null) }
+    var levelOf by remember { mutableStateOf<String?>(null) }
     val tracker = rememberEntranceTracker()
     LaunchedEffect(Unit) { vm.loadTools() }
 
-    fun toggleBuiltIn(tool: BuiltInTool, on: Boolean) = vm.setBuiltInTool(tool, on)
     fun setServer(server: McpServer, on: Boolean) = vm.setServerOn(server, on)
     fun setTool(server: McpServer, tool: String, on: Boolean) = vm.setServerTool(server, tool, on)
 
@@ -77,11 +81,14 @@ fun ToolsScreen(vm: PagesViewModel, onBack: () -> Unit) {
                     Column(Modifier.entrance("builtin", 0, tracker, dx = 0.dp, dy = 8.dp)) {
                         GroupLabel("Built in")
                         VaultGroup {
-                            val byPath = builtIn.items.associateBy { it.path }
                             builtIn.items.forEachIndexed { i, tool ->
                                 if (i > 0) GroupDivider()
-                                val usable = tool.needs == null || byPath[tool.needs]?.enabled != false
-                                ToolRow(tool.title, tool.subtitle, tool.enabled && usable, { toggleBuiltIn(tool, it) }, enabled = usable)
+                                GroupActionRow(
+                                    tool.title,
+                                    if (tool.available) tool.level.label else "Not available",
+                                    { levelOf = tool.path },
+                                    chevron = true,
+                                )
                             }
                         }
                     }
@@ -107,6 +114,10 @@ fun ToolsScreen(vm: PagesViewModel, onBack: () -> Unit) {
                 }
             }
         }
+    }
+
+    builtIn.items.firstOrNull { it.path == levelOf }?.let { tool ->
+        LevelSheet(tool, onLevel = { vm.setToolLevel(tool, it) }, onDismiss = { levelOf = null })
     }
 
     servers.items.firstOrNull { it.name == open }?.let { server ->
@@ -148,6 +159,36 @@ private fun ToolRow(
         VaultSwitch(checked = checked, onCheckedChange = null, enabled = enabled)
         if (onOpen != null) BarButton(VaultIcons.ChevronRight, openLabel, onOpen, tint = k.muted, iconSize = 20.dp)
         else Spacer(Modifier.width(48.dp))
+    }
+}
+
+/** A built-in tool's level: one line on what it does, and three chips. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun LevelSheet(tool: BuiltInTool, onLevel: (ToolLevel) -> Unit, onDismiss: () -> Unit) {
+    val k = MaterialTheme.vault
+    VaultSheet(onDismiss = onDismiss, title = tool.title) {
+        Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 24.dp)) {
+            Text(tool.subtitle, style = VaultType.Preview, color = k.muted)
+            if (tool.available) {
+                androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    tool.levels.forEach { level ->
+                        VaultChip(
+                            level.label, { onLevel(level) }, selected = tool.level == level,
+                            modifier = Modifier.semantics { contentDescription = "Level: ${level.label}"; selected = tool.level == level },
+                        )
+                    }
+                }
+                Text(
+                    when (tool.level) {
+                        ToolLevel.Allowed -> "${LocalAgentName.current} uses it when it helps."
+                        ToolLevel.Ask -> "${LocalAgentName.current} asks you each time, in the chat."
+                        ToolLevel.Off -> "${LocalAgentName.current} can’t use it."
+                    },
+                    style = VaultType.Caption, color = k.muted, modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+        }
     }
 }
 

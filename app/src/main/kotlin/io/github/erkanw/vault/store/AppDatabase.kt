@@ -162,19 +162,57 @@ interface ChatDao {
     }
 }
 
+/** One answer's cost (PLAN §5, `usage`): what it used and what it cost, for the Usage page and the budget (Phase 7). */
+@Entity(tableName = "usage", indices = [Index("time")])
+data class UsageEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val time: Long,
+    val model: String,
+    /** "user" or "automation". */
+    val source: String,
+    @ColumnInfo(name = "session_id") val sessionId: String?,
+    @ColumnInfo(name = "automation_id") val automationId: String? = null,
+    @ColumnInfo(name = "tokens_in") val tokensIn: Long,
+    @ColumnInfo(name = "tokens_out") val tokensOut: Long,
+    val cost: Double?,
+    val ok: Boolean,
+)
+
+@Dao
+interface UsageDao {
+    @Insert
+    suspend fun insert(row: UsageEntity)
+
+    @Query("SELECT * FROM usage WHERE time >= :since ORDER BY time")
+    suspend fun since(since: Long): List<UsageEntity>
+}
+
 @Database(
-    entities = [SessionEntity::class, MessageEntity::class, AttachmentEntity::class, StepEntity::class],
-    version = 1,
+    entities = [SessionEntity::class, MessageEntity::class, AttachmentEntity::class, StepEntity::class, UsageEntity::class],
+    version = 2,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun chats(): ChatDao
+    abstract fun usage(): UsageDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
 
+        /** Phase 3: the usage log. */
+        val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `usage` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time` INTEGER NOT NULL, " +
+                        "`model` TEXT NOT NULL, `source` TEXT NOT NULL, `session_id` TEXT, `automation_id` TEXT, `tokens_in` INTEGER NOT NULL, " +
+                        "`tokens_out` INTEGER NOT NULL, `cost` REAL, `ok` INTEGER NOT NULL)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_usage_time` ON `usage` (`time`)")
+            }
+        }
+
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
-            instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "app.db").build().also { instance = it }
+            instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "app.db").addMigrations(MIGRATION_1_2).build().also { instance = it }
         }
     }
 }

@@ -140,6 +140,13 @@ class PagesViewModel(app: Application) : AndroidViewModel(app) {
         ::loadTools,
     ) { backend.setBuiltInTool(tool.path, on) }
 
+    fun setToolLevel(tool: BuiltInTool, level: io.github.erkanw.vault.tools.ToolLevel) = act(
+        _builtInTools,
+        { list -> list.map { if (it.path == tool.path) it.copy(level = level, enabled = level != io.github.erkanw.vault.tools.ToolLevel.Off) else it } },
+        "Couldn’t change ${tool.title.lowercase()}.",
+        ::loadTools,
+    ) { backend.setToolLevel(tool.path, level) }
+
     /** Turns a whole tool server off (none of its tools) or back on (the tools it had on before, or all of them). */
     fun setServerOn(server: McpServer, on: Boolean) {
         val next = if (on) {

@@ -426,6 +426,22 @@ fun ChatScreen(vm: ChatViewModel, focusTick: Int, onBack: () -> Unit, onSettings
                 )
             }
             NoticeBanner(notice, onDismiss = vm::clearNotice)
+            // A tool waiting for your OK in this chat (PLAN §7.5): the card sits above the composer until you answer.
+            val approvals by io.github.erkanw.vault.agent.ApprovalGate.pending.collectAsStateWithLifecycle()
+            approvals.firstOrNull { it.sessionId == chatId }?.let { r ->
+                ApprovalCard(
+                    ApprovalRequest(r.id, r.tool, r.summary, r.detail),
+                    sending = false,
+                    onAllow = { always ->
+                        io.github.erkanw.vault.agent.ApprovalGate.answer(r.id, if (always) io.github.erkanw.vault.agent.ApprovalGate.Answer.AllowAlways else io.github.erkanw.vault.agent.ApprovalGate.Answer.Allow)
+                    },
+                    onDeny = { io.github.erkanw.vault.agent.ApprovalGate.answer(r.id, io.github.erkanw.vault.agent.ApprovalGate.Answer.Deny) },
+                    // At most a third of the screen, so the chat and the composer stay in view with the keyboard up.
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        .heightIn(max = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp / 3).dp),
+                    allowAlways = r.canAlways,
+                )
+            }
             CommandMenu(
                 matches = matches,
                 onPick = { command ->

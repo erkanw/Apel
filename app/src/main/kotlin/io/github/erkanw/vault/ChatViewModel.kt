@@ -745,7 +745,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             job?.cancel()
             _busy.value = false
             _step.value = ""
-            ReplyService.stop(getApplication<Application>())
+            AgentService.stop(getApplication<Application>())
         }
         publish(BlobState.Idle, snippet = "")
     }
@@ -771,7 +771,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val myEpoch = epoch
         publish(BlobState.Thinking)
         // Keeps the app alive if the screen locks or you switch apps while the agent is answering.
-        ReplyService.start(getApplication<Application>())
+        AgentService.start(getApplication<Application>())
 
         job = viewModelScope.launch {
             // False once the session on screen is another one: this reply then has nothing left to show.
@@ -833,8 +833,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 }
             } catch (e: CancellationException) {
                 if (here() && stopRequested) {
-                    // You cut it off: keep what arrived, drop an empty bubble.
-                    _messages.update { list -> list.filterNot { it.id == reply.id && it.text.isEmpty() } }
+                    // You cut it off: keep what arrived; with nothing yet, the reply says "Stopped." (as it is saved).
+                    _messages.update { list -> list.map { if (it.id == reply.id && it.text.isEmpty()) it.copy(text = "Stopped.") else it } }
                     publish(BlobState.Idle)
                 }
                 throw e
@@ -858,7 +858,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     _busy.value = false
                     _step.value = ""
                     store.save(_messages.value)
-                    ReplyService.stop(getApplication<Application>())
+                    AgentService.stop(getApplication<Application>())
                     // The backend may have named the session now.
                     refreshSessions()
                 }
@@ -906,7 +906,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         _messages.update { list ->
             list.map {
                 if (it.id != id) it
-                else it.copy(steps = withStep(if (it.steps.lastOrNull()?.kind == StepKind.Thinking) it.steps.dropLast(1) else it.steps, step))
+                // One thinking step, first, updated in place as reasoning streams across the turn's tool rounds (as saved).
+                else {
+                    val at = it.steps.indexOfFirst { s -> s.kind == StepKind.Thinking }
+                    it.copy(steps = if (at >= 0) it.steps.toMutableList().also { l -> l[at] = step } else listOf(step) + it.steps)
+                }
             }
         }
     }

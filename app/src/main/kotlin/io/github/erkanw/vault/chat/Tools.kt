@@ -8,6 +8,12 @@ data class BuiltInTool(
     val enabled: Boolean,
     /** Only matters when this other tool is on. */
     val needs: String? = null,
+    /** Its level (Allowed, Ask first, Off); [enabled] is "not Off". */
+    val level: io.github.erkanw.vault.tools.ToolLevel = if (enabled) io.github.erkanw.vault.tools.ToolLevel.Allowed else io.github.erkanw.vault.tools.ToolLevel.Off,
+    /** False when the provider can’t run it (web search on your own server). */
+    val available: Boolean = true,
+    /** The levels it can have. */
+    val levels: List<io.github.erkanw.vault.tools.ToolLevel> = io.github.erkanw.vault.tools.ToolLevel.entries,
 )
 
 /** A tool server the agent is connected to, with all its tools and the ones that are on. */
