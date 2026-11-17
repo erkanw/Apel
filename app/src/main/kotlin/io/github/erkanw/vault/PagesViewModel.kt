@@ -82,6 +82,30 @@ class PagesViewModel(app: Application) : AndroidViewModel(app) {
 
     suspend fun skillText(name: String) = runCatching { backend.skillText(name) }.getOrNull()
 
+    /** A skill's one-line result ("Imported trip-planner."), or why it failed, for the Skills page. */
+    private val _skillNote = MutableStateFlow<String?>(null)
+    val skillNote: StateFlow<String?> = _skillNote.asStateFlow()
+    fun clearSkillNote() { _skillNote.value = null }
+
+    private fun skillOp(work: (android.content.Context) -> String) {
+        val app = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            _skillNote.value = try { work(app) } catch (e: CancellationException) { throw e } catch (e: Exception) { e.message ?: "That didn’t work." }
+            launch(Dispatchers.Main) { loadSkills() }
+        }
+    }
+
+    fun importSkill(uri: android.net.Uri) = skillOp { "Imported ${io.github.erkanw.vault.tools.SkillStore.import(it, uri)}." }
+    fun duplicateSkill(name: String) = skillOp { "Made ${io.github.erkanw.vault.tools.SkillStore.duplicate(it, name)}, your own copy to edit." }
+
+    /** Saves a skill of yours to Downloads/Apel: its SKILL.md, or the whole folder as a zip when it holds more. */
+    fun exportSkill(name: String) {
+        val dir = java.io.File(io.github.erkanw.vault.tools.SkillStore.dir(getApplication()), name)
+        val alone = dir.listFiles().orEmpty().all { it.name == "SKILL.md" }
+        if (alone) download("skills/$name/SKILL.md", "$name.md", folder = false) else download("skills/$name", name, folder = true)
+        _skillNote.value = "Saving $name in Downloads/Apel."
+    }
+
     fun deleteSkill(skill: SkillInfo) = act(
         _skills,
         { list -> list.filterNot { it.name == skill.name } },
@@ -205,6 +229,54 @@ class PagesViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+
+    // ---- editing the workspace (PLAN §6.6) ----
+
+    private val _trash = MutableStateFlow<List<io.github.erkanw.vault.tools.TrashItem>>(emptyList())
+    val trash: StateFlow<List<io.github.erkanw.vault.tools.TrashItem>> = _trash.asStateFlow()
+
+    /** Runs a change to the workspace off the main thread, then shows the folder again; a refusal shows as the page's line. */
+    private fun fileOp(after: (String?) -> Unit = {}, work: (android.content.Context) -> String?) {
+        val app = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = try {
+                work(app)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _files.update { it.copy(error = e.message ?: "That didn’t work.") }
+                return@launch
+            }
+            launch(Dispatchers.Main) {
+                openFolder(_files.value.path)
+                after(result)
+            }
+        }
+    }
+
+    fun newFolder(name: String) = fileOp { io.github.erkanw.vault.tools.WorkspaceOps.newFolder(it, _files.value.path, name.trim()); null }
+
+    /** Makes an empty file and opens it, ready to edit. */
+    fun newFile(name: String) = fileOp(after = { path -> if (path != null) viewFile(path, path.substringAfterLast('/')) }) {
+        io.github.erkanw.vault.tools.WorkspaceOps.newFile(it, _files.value.path, name.trim())
+    }
+
+    fun moveEntry(path: String, to: String) = fileOp { io.github.erkanw.vault.tools.WorkspaceOps.move(it, path, to) }
+    fun trashEntry(path: String) = fileOp { io.github.erkanw.vault.tools.WorkspaceOps.trash(it, path); null }
+    fun importFile(uri: android.net.Uri) = fileOp { io.github.erkanw.vault.tools.WorkspaceOps.import(it, _files.value.path, uri) }
+
+    /** Saves an edited text file and shows the new text in the viewer. */
+    fun saveText(path: String, text: String) = fileOp(after = { _viewed.update { v -> v?.copy(text = text) } }) {
+        io.github.erkanw.vault.tools.WorkspaceOps.writeText(it, path, text); null
+    }
+
+    fun loadTrash() {
+        val app = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) { _trash.value = io.github.erkanw.vault.tools.WorkspaceOps.trashList(app) }
+    }
+
+    fun restore(id: String) = fileOp(after = { loadTrash() }) { io.github.erkanw.vault.tools.WorkspaceOps.restore(it, id) }
+    fun deleteForever(id: String) = fileOp(after = { loadTrash() }) { io.github.erkanw.vault.tools.WorkspaceOps.deleteForever(it, id); null }
 
     /** Back one folder; false when already at the top (the page then closes). */
     fun folderUp(): Boolean {

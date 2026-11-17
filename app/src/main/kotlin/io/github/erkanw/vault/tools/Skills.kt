@@ -14,6 +14,8 @@ data class Skill(val name: String, val description: String, val body: String, va
  */
 object SkillStore {
     private const val PREFS = "skills"
+    private const val MAX_ZIP_ENTRIES = 500
+    private const val MAX_ZIP_TOTAL = 20L * 1024 * 1024
     private const val KEY_OFF = "off"
     val SLUG = Regex("^[a-z0-9][a-z0-9-]{0,47}$")
 
@@ -88,6 +90,82 @@ object SkillStore {
         if (description.isBlank()) throw ToolException("A skill needs a one-line description.")
         val d = File(dir(context), name).apply { mkdirs() }
         File(d, "SKILL.md").writeText(render(name, description, body))
+    }
+
+    /** A free name like [base]-copy, [base]-copy-2… */
+    private fun freeName(context: Context, base: String): String {
+        val taken = all(context).map { it.name }.toSet()
+        var name = base
+        var n = 2
+        while (name in taken) name = "$base-$n".also { n++ }
+        return name
+    }
+
+    /** Your own copy of a skill (a built-in one becomes editable this way); its name. */
+    fun duplicate(context: Context, name: String): String {
+        val s = get(context, name) ?: throw ToolException("That skill is gone.")
+        val copy = freeName(context, (s.name.take(42) + "-copy"))
+        save(context, copy, s.description, s.body)
+        return copy
+    }
+
+    /** A name made from anything: lowercase, dashes, at most 48 characters. */
+    fun slugOf(text: String): String = text.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').take(48).ifEmpty { "skill" }
+
+    /**
+     * Imports a skill from a file the user picked (PLAN §6.7): a `SKILL.md`, or a zip of a skill folder in the Agent Skills
+     * layout (its files come too). Its name: the front matter's, else the folder's or the file's. Returns the name.
+     */
+    fun import(context: Context, uri: android.net.Uri): String {
+        val resolver = context.contentResolver
+        val display = resolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getString(0) else null
+        }.orEmpty()
+        val bytes = resolver.openInputStream(uri)?.use { it.readNBytes(5 * 1024 * 1024 + 1) } ?: throw ToolException("That file couldn’t be read.")
+        if (bytes.size > 5 * 1024 * 1024) throw ToolException("That is more than 5 MB.")
+        val zip = bytes.size > 4 && bytes[0] == 'P'.code.toByte() && bytes[1] == 'K'.code.toByte()
+        if (!zip) {
+            val skill = parse(String(bytes), slugOf(display.substringBeforeLast('.').let { if (it.equals("SKILL", true)) "skill" else it }))
+            val name = slugOf(skill.name)
+            if (get(context, name)?.builtIn == false) throw ToolException("You already have a skill called $name.")
+            save(context, name, skill.description.ifBlank { "Imported from $display" }, skill.body)
+            return name
+        }
+        // A zip: find SKILL.md, take its folder.
+        val entries = LinkedHashMap<String, ByteArray>()
+        var total = 0L
+        java.util.zip.ZipInputStream(bytes.inputStream()).use { z ->
+            var e = z.nextEntry
+            while (e != null) {
+                if (!e.isDirectory) {
+                    if (entries.size >= MAX_ZIP_ENTRIES) throw ToolException("That zip holds more than $MAX_ZIP_ENTRIES files.")
+                    val data = z.readNBytes(MAX_ZIP_TOTAL.toInt() + 1)
+                    total += data.size
+                    if (total > MAX_ZIP_TOTAL) throw ToolException("That zip unpacks to more than 20 MB.")
+                    entries[e.name.replace('\\', '/')] = data
+                }
+                e = z.nextEntry
+            }
+        }
+        val skillFile = entries.keys.filter { it.substringAfterLast('/') == "SKILL.md" }.minByOrNull { it.count { c -> c == '/' } }
+            ?: throw ToolException("There is no SKILL.md in that zip.")
+        val folder = skillFile.substringBeforeLast("SKILL.md")
+        val parsed = parse(String(entries.getValue(skillFile)), slugOf(folder.trimEnd('/').substringAfterLast('/').ifEmpty { display.substringBeforeLast('.') }))
+        val name = slugOf(parsed.name)
+        if (get(context, name)?.builtIn == false) throw ToolException("You already have a skill called $name.")
+        save(context, name, parsed.description.ifBlank { "Imported from $display" }, parsed.body)
+        val dir = File(dir(context), name).canonicalFile
+        for ((path, data) in entries) {
+            if (!path.startsWith(folder) || path == skillFile) continue
+            val rel = path.removePrefix(folder)
+            // A SKILL.md at the zip’s top: only the files beside it and in folders beside it, as for a folder.
+            if (folder.isEmpty() && rel.substringBefore('/').startsWith(".")) continue
+            val out = File(dir, rel).canonicalFile
+            if (!out.path.startsWith(dir.path + File.separator) || rel.split('/').any { it == ".." }) continue
+            out.parentFile?.mkdirs()
+            out.writeBytes(data)
+        }
+        return name
     }
 
     /** Moves a skill of the user's to the Trash; built-in starters can only be switched off. */

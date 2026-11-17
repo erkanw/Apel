@@ -32,8 +32,10 @@ data class SessionEntity(
     @ColumnInfo(name = "channel_id") val channelId: String? = null,
     /** The model preset this session runs with; null: the main model. */
     @ColumnInfo(name = "model_override") val modelOverride: String? = null,
-    /** Messages up to this id are covered by a compaction summary (Phase 4). */
+    /** Messages up to this id are covered by [summary] (PLAN §7.6): they stay on screen but aren’t sent again. */
     @ColumnInfo(name = "compacted_through") val compactedThrough: Long = 0L,
+    /** The summary of the messages up to [compactedThrough]. */
+    val summary: String? = null,
     /** For a fork: how many messages were copied from the session it came from. */
     @ColumnInfo(name = "fork_boundary") val forkBoundary: Int? = null,
 )
@@ -130,6 +132,9 @@ interface ChatDao {
     @Query("UPDATE sessions SET model_override = :preset WHERE id = :id")
     suspend fun setModel(id: String, preset: String?)
 
+    @Query("UPDATE sessions SET summary = :summary, compacted_through = :through WHERE id = :id")
+    suspend fun setCompaction(id: String, summary: String, through: Long)
+
     @Query("UPDATE sessions SET updated = :at WHERE id = :id")
     suspend fun touch(id: String, at: Long)
 
@@ -189,7 +194,7 @@ interface UsageDao {
 
 @Database(
     entities = [SessionEntity::class, MessageEntity::class, AttachmentEntity::class, StepEntity::class, UsageEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -198,6 +203,13 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
+
+        /** Phase 4: a session’s compaction summary. */
+        val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `sessions` ADD COLUMN `summary` TEXT")
+            }
+        }
 
         /** Phase 3: the usage log. */
         val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
@@ -212,7 +224,7 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
-            instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "app.db").addMigrations(MIGRATION_1_2).build().also { instance = it }
+            instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "app.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
         }
     }
 }

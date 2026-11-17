@@ -99,7 +99,12 @@ class LocalBackend(context: Context) : AgentBackend {
 
     override suspend fun thread(chatId: String): ThreadPage? {
         val session = db.session(chatId) ?: return null
-        return ThreadPage(db.messages(chatId).map(::toChatMessage), 0, session.forkBoundary)
+        val all = db.messages(chatId)
+        return ThreadPage(
+            all.map(::toChatMessage), 0, session.forkBoundary,
+            compactedAt = if (session.compactedThrough > 0) all.count { it.message.id <= session.compactedThrough } else null,
+            compactionChars = session.summary?.length ?: 0,
+        )
     }
 
     override suspend fun sessionStats(chatId: String): SessionStats? {
@@ -180,12 +185,26 @@ class LocalBackend(context: Context) : AgentBackend {
         // A slash command the app answers itself: no model call.
         if (input.text.startsWith("/")) {
             val word = input.text.trim().substringBefore(' ').lowercase()
-            val answer = if (word == "/help") {
-                LOCAL_COMMANDS_NOW.joinToString("\n") { "- **${it.name}** ${it.description.replaceFirstChar { c -> c.lowercase() }}" }
-            } else {
-                "That command isn’t available. Type / to see the commands."
+            val answer = when (word) {
+                "/help" -> LOCAL_COMMANDS_NOW.joinToString("\n") { "- **${it.name}** ${it.description.replaceFirstChar { c -> c.lowercase() }}" }
+                "/compact" -> {
+                    val preset = models.preset(session.modelOverride) ?: models.callChain().firstOrNull()
+                    if (preset == null) {
+                        "No model chosen yet. Add one in Settings, Models."
+                    } else {
+                        emit(TurnEvent.ToolHint("Summarising the earlier part of this chat"))
+                        try {
+                            if (compact(session.id, target, preset, keepTail = 0)) "Done. The earlier part of this chat is summarised; I’ll work from the summary from here on."
+                            else "There’s nothing to summarise yet."
+                        } catch (e: ProviderException) {
+                            "Couldn’t summarise: ${e.message}"
+                        }
+                    }
+                }
+                else -> "That command isn’t available. Type / to see the commands."
             }
-            db.insertMessage(MessageEntity(sessionId = session.id, role = "assistant", text = answer, created = System.currentTimeMillis()))
+            // The app’s own answers aren’t sent to the model later (status "local").
+            db.insertMessage(MessageEntity(sessionId = session.id, role = "assistant", text = answer, created = System.currentTimeMillis(), status = "local"))
             emit(TurnEvent.TurnEnd(answer))
             return@flow
         }
@@ -210,11 +229,30 @@ class LocalBackend(context: Context) : AgentBackend {
             return@flow
         }
 
+        // Near the model’s context window: summarise the older turns first (PLAN §7.6, at 70 %).
+        var summary = session.summary.orEmpty()
+        var through = session.compactedThrough
+        val earlySteps = ArrayList<AgentStep>()
+        val estimate = history.filter { it.message.id > through && keep(it) }.sumOf { historyText(it).length } / 3 + 4_000
+        if (first.contextTokens > 0 && estimate > first.contextTokens * 7 / 10) {
+            emit(TurnEvent.ToolHint("Making room: summarising the earlier chat"))
+            try {
+                if (compact(session.id, target, first, keepTail = 4)) {
+                    db.session(session.id)?.let { summary = it.summary.orEmpty(); through = it.compactedThrough }
+                    val step = AgentStep(StepKind.Note, "Summarised the earlier part of this chat to make room.")
+                    earlySteps += step
+                    emit(TurnEvent.Progress(step))
+                }
+            } catch (e: ProviderException) {
+                // Go on without: the provider says so if the chat is really too long.
+            }
+        }
+
         val state = ProviderStore.state.value
         val openRouter = target.kind == ProviderKind.OpenRouter
         val content = userContent(input.text, input.media, pdfAsFile = openRouter) { name, bytes -> saveDownload(name, bytes) }
         val ctx = ToolContext(app, session.id)
-        val steps = ArrayList<AgentStep>()
+        val steps = ArrayList<AgentStep>(earlySteps)
         // What this turn says: the text of every round, joined (a round that calls tools may say something first).
         var shown = ""
         var reasoning = ""
@@ -251,9 +289,9 @@ class LocalBackend(context: Context) : AgentBackend {
                 val messages = JSONArray()
                     .put(JSONObject().put("role", "system").put("content", systemPrompt(
                         AgentProfile.name(app), ZonedDateTime.now(), input.channelNote, MemoryTools.forPrompt(app), tools.length() > 0,
-                        AgentProfile.instructions(app), AgentProfile.aboutYou(app), SkillStore.index(app),
+                        AgentProfile.instructions(app), AgentProfile.aboutYou(app), SkillStore.index(app), summary,
                     )))
-                history.filter { keep(it) }.forEach { h -> messages.put(JSONObject().put("role", h.message.role).put("content", historyText(h))) }
+                history.filter { it.message.id > through && keep(it) }.forEach { h -> messages.put(JSONObject().put("role", h.message.role).put("content", historyText(h))) }
                 messages.put(JSONObject().put("role", "user").put("content", content))
                 rounds.forEach { messages.put(it) }
                 val request = ChatRequest(
@@ -489,7 +527,54 @@ class LocalBackend(context: Context) : AgentBackend {
         return known.inputs.isEmpty() || input in known.inputs
     }
 
-    private fun keep(m: MessageWithParts): Boolean = m.message.status != "error" && (m.message.text.isNotBlank() || m.attachments.isNotEmpty())
+    /** Whether a past message goes to the model again: not errors, not slash commands and the app’s answers to them. */
+    private fun keep(m: MessageWithParts): Boolean = m.message.status != "error" && m.message.status != "local" &&
+        !(m.message.role == "user" && m.message.text.trimStart().startsWith("/")) && (m.message.text.isNotBlank() || m.attachments.isNotEmpty())
+
+    /**
+     * Summarises a session’s older messages into its summary (PLAN §7.6), keeping the last [keepTail] messages as they are
+     * (from one of your messages on). They stay on screen; only the summary goes to the model. False: nothing to do.
+     */
+    private suspend fun compact(sessionId: String, target: io.github.erkanw.vault.provider.ProviderTarget, preset: ModelPreset, keepTail: Int): Boolean {
+        val session = db.session(sessionId) ?: return false
+        val open = db.messages(sessionId).filter { it.message.id > session.compactedThrough && keep(it) }
+        var cut = open.size - keepTail
+        while (cut in 1 until open.size && open[cut].message.role != "user") cut--
+        if (cut <= 0) return false
+        val old = open.take(cut)
+        // The earlier summary goes in whole, first; only the turns are cut (from the oldest) to fit.
+        val prior = session.summary?.takeIf { it.isNotBlank() }?.let { "Summary so far:\n$it\n\n" }.orEmpty()
+        val turns = buildString {
+            old.forEach { m ->
+                append(if (m.message.role == "user") "User: " else "Assistant: ").append(historyText(m).take(4_000))
+                // What its tools did (files written, pages read), which the text alone may not say.
+                val tools = m.steps.filter { it.kind == "tool" }.joinToString("; ") { it.title.lineSequence().first().take(120) }
+                if (tools.isNotEmpty()) append("\n(Tools: ").append(tools.take(600)).append(")")
+                append("\n\n")
+            }
+        }
+        val transcript = prior + turns.takeLast((60_000 - prior.length).coerceAtLeast(10_000))
+        val messages = JSONArray()
+            .put(JSONObject().put("role", "system").put("content", COMPACT_PROMPT))
+            .put(JSONObject().put("role", "user").put("content", transcript))
+        val state = ProviderStore.state.value
+        val openRouter = target.kind == ProviderKind.OpenRouter
+        val request = ChatRequest(preset.model, messages, maxTokens = 1_500, privateOnly = openRouter && state.privateOnly && preset.model !in state.privateExempt)
+        var text = ""
+        var usage: StreamPart.Usage? = null
+        ProviderClient.stream(target, request).collect { p ->
+            when (p) {
+                is StreamPart.Text -> text += p.text
+                is StreamPart.Usage -> usage = p
+                else -> Unit
+            }
+        }
+        val result = ThinkFilter.visible(text).trim()
+        if (result.isEmpty()) throw ProviderException("${preset.label} sent an empty summary.")
+        db.setCompaction(sessionId, result.take(12_000), old.last().message.id)
+        usage?.let { logUsage(preset.model, sessionId, it.promptTokens, it.completionTokens, it.cost, ok = true) }
+        return true
+    }
 
     /** A past message as the model sees it again: its text, and a line for each file (files aren't sent twice). */
     private fun historyText(m: MessageWithParts): String {
@@ -554,8 +639,40 @@ class LocalBackend(context: Context) : AgentBackend {
 
     // ---- later phases ----
 
-    override suspend fun files(path: String): FileListing = FileListing(path, emptyList())
-    override suspend fun download(path: String, zip: Boolean, out: OutputStream): Long = later()
+    override suspend fun files(path: String): FileListing = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val dir = wrap { io.github.erkanw.vault.tools.Workspace.resolve(app, path) }
+        if (!dir.isDirectory) throw ChatException("That folder is gone.")
+        val entries = dir.listFiles().orEmpty()
+            .filter { !java.nio.file.Files.isSymbolicLink(it.toPath()) && !(path.isEmpty() && it.name.startsWith(".")) }
+            .map { io.github.erkanw.vault.chat.FileEntry(it.name, it.isDirectory, if (it.isFile) it.length() else 0L, it.lastModified()) }
+            .sortedWith(compareBy({ !it.dir }, { it.name.lowercase() }))
+        FileListing(path, entries)
+    }
+
+    override suspend fun download(path: String, zip: Boolean, out: OutputStream): Long = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val f = wrap { io.github.erkanw.vault.tools.Workspace.resolve(app, path) }
+        if (!f.exists()) throw ChatException("That file is gone.")
+        val counting = object : java.io.FilterOutputStream(out) {
+            var n = 0L
+            override fun write(b: Int) { out.write(b); n++ }
+            override fun write(b: ByteArray, off: Int, len: Int) { out.write(b, off, len); n += len }
+        }
+        if (zip || f.isDirectory) {
+            java.util.zip.ZipOutputStream(counting).also { z ->
+                val base = f.parentFile ?: f
+                f.walkTopDown().filter { it.isFile && !java.nio.file.Files.isSymbolicLink(it.toPath()) }.forEach { file ->
+                    z.putNextEntry(java.util.zip.ZipEntry(file.relativeTo(base).path.replace('\\', '/')))
+                    file.inputStream().use { it.copyTo(z) }
+                    z.closeEntry()
+                }
+                z.finish()
+            }
+        } else {
+            f.inputStream().use { it.copyTo(counting) }
+        }
+        counting.flush()
+        counting.n
+    }
     override suspend fun skills(): List<SkillInfo> = SkillStore.all(app).map { s ->
         SkillInfo(s.name, s.description, s.enabled, available = true, deletable = !s.builtIn, source = if (s.builtIn) "Built in" else "", unavailableReason = "")
     }
@@ -588,7 +705,11 @@ class LocalBackend(context: Context) : AgentBackend {
         const val MAX_RESULT = 16_000
 
         /** The commands that work in this version. */
-        val LOCAL_COMMANDS_NOW = LOCAL_COMMANDS.filter { it.name in setOf("/new", "/stop", "/model", "/help") }
+        val LOCAL_COMMANDS_NOW = LOCAL_COMMANDS.filter { it.name in setOf("/new", "/stop", "/model", "/compact", "/help") }
+
+        const val COMPACT_PROMPT = "Summarise this conversation between a user and their AI agent so the agent can carry on without the full text. " +
+            "Keep what the user wants and decided, facts about them, names, numbers, dates, files and links mentioned, what was done, " +
+            "and what is still open. Short Markdown bullets, in the conversation’s language, at most 400 words. Add nothing that isn’t there."
 
         fun stepKindName(kind: StepKind) = when (kind) {
             StepKind.Tool -> "tool"

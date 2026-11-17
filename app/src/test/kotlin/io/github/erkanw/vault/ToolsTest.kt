@@ -11,6 +11,7 @@ import io.github.erkanw.vault.provider.requestBody
 import io.github.erkanw.vault.tools.HtmlText
 import io.github.erkanw.vault.tools.MemoryTools
 import io.github.erkanw.vault.tools.PublicOnlySockets
+import io.github.erkanw.vault.tools.SkillStore
 import io.github.erkanw.vault.tools.WebFetchTool
 import org.json.JSONArray
 import org.json.JSONObject
@@ -86,6 +87,21 @@ class ToolsTest {
             }
             assertTrue(refused)
         }
+    }
+
+    @Test
+    fun `a SKILL_md reads and writes in the Agent Skills layout`() {
+        val text = SkillStore.render("trip-planner", "Planning a trip.\nSecond line", "1. Ask where.\n2. Ask when.")
+        assertEquals("---\nname: trip-planner\ndescription: Planning a trip. Second line\n---\n\n1. Ask where.\n2. Ask when.\n", text)
+        val s = SkillStore.parse(text, "fallback")
+        assertEquals("trip-planner", s.name)
+        assertEquals("Planning a trip. Second line", s.description)
+        assertEquals("1. Ask where.\n2. Ask when.", s.body)
+        assertEquals("fallback", SkillStore.parse("Just instructions.", "fallback").name)
+        assertEquals("Just instructions.", SkillStore.parse("Just instructions.", "fallback").body)
+        assertEquals("my-trip-planner", SkillStore.slugOf("My Trip  Planner!"))
+        assertTrue(SkillStore.SLUG.matches("web-research"))
+        assertFalse(SkillStore.SLUG.matches("Web Research"))
     }
 
     @Test

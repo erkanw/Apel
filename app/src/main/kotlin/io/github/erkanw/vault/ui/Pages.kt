@@ -127,15 +127,56 @@ fun SkillsScreen(
     var editing by remember { mutableStateOf<Triple<String, String, String>?>(null) }
     var saveError by remember { mutableStateOf<String?>(null) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val skillNote by vm.skillNote.collectAsStateWithLifecycle()
+    val skillImporter = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) vm.importSkill(uri)
+    }
     val tracker = rememberEntranceTracker()
-    LaunchedEffect(Unit) { vm.loadSkills() }
+    LaunchedEffect(Unit) { vm.loadSkills(); vm.clearSkillNote() }
+
+    // Making or editing a skill is a page of its own.
+    if (creating) {
+        SkillEditorPage(
+            taken = state.items.map { it.name }.toSet(),
+            onSave = { slug, description, instructions -> vm.saveSkill(slug, description, instructions) { e -> saveError = e; if (e == null) creating = false } },
+            onBack = { creating = false; saveError = null }, error = saveError,
+        )
+        return
+    }
+    editing?.let { (name, description, body) ->
+        SkillEditorPage(
+            taken = state.items.map { it.name }.toSet() - name,
+            onSave = { _, d, instructions -> vm.saveSkill(name, d, instructions) { e -> saveError = e; if (e == null) editing = null } },
+            onBack = { editing = null; saveError = null },
+            editing = name, initialDescription = description, initialInstructions = body, error = saveError,
+        )
+        return
+    }
 
     Column(Modifier.fillMaxSize().background(k.background)) {
         val on = state.items.count { it.enabled }
         PageHeader(
             "Skills", if (state.items.isEmpty()) "What ${LocalAgentName.current} knows how to do" else "$on of ${state.items.size} on", onBack,
-            action = { BarButton(VaultIcons.Plus, "New skill", { creating = true }) },
+            action = {
+                Box {
+                    var open by remember { mutableStateOf(false) }
+                    BarButton(VaultIcons.Plus, "New or import a skill", { open = true })
+                    DropdownMenu(
+                        expanded = open, onDismissRequest = { open = false },
+                        shape = RoundedCornerShape(16.dp), containerColor = k.pressed, tonalElevation = 0.dp, shadowElevation = 0.dp,
+                    ) {
+                        MenuItem(VaultIcons.Pencil, "New skill") { open = false; creating = true }
+                        MenuItem(VaultIcons.Download, "Import from the phone") { open = false; skillImporter.launch(arrayOf("*/*")) }
+                    }
+                }
+            },
         )
+        skillNote?.let { note ->
+            Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(note, style = VaultType.Caption, color = k.muted, modifier = Modifier.weight(1f))
+                BarButton(VaultIcons.Close, "Dismiss", vm::clearSkillNote, tint = k.muted, iconSize = 16.dp)
+            }
+        }
         PageBody(state, "No skills yet.", vm::loadSkills) { skills ->
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp)) {
                 item(key = "group") {
@@ -145,32 +186,14 @@ fun SkillsScreen(
                             SkillRow(
                                 skill, onToggle = { vm.setSkillEnabled(skill, it) }, onDelete = { deleting = skill },
                                 onEdit = { scope.launch { vm.skillText(skill.name)?.let { (d, b) -> saveError = null; editing = Triple(skill.name, d, b) } } },
+                                onDuplicate = { vm.duplicateSkill(skill.name) },
+                                onExport = { vm.exportSkill(skill.name) },
                             )
                         }
                     }
                 }
             }
         }
-    }
-    if (creating) {
-        NewSkillSheet(
-            taken = state.items.map { it.name }.toSet(),
-            onCreate = { slug, description, instructions ->
-                vm.saveSkill(slug, description, instructions) { e -> saveError = e; if (e == null) creating = false }
-            },
-            onDismiss = { creating = false; saveError = null },
-            error = saveError,
-        )
-    }
-    editing?.let { (name, description, body) ->
-        NewSkillSheet(
-            taken = state.items.map { it.name }.toSet() - name,
-            onCreate = { _, d, instructions ->
-                vm.saveSkill(name, d, instructions) { e -> saveError = e; if (e == null) editing = null }
-            },
-            onDismiss = { editing = null; saveError = null },
-            editing = name, initialDescription = description, initialInstructions = body, error = saveError,
-        )
     }
     deleting?.let { skill ->
         ConfirmDialog(
@@ -188,7 +211,10 @@ fun SkillsScreen(
 
 /** A skill: its name and where it comes from, what it does, and its switch; a deletable one has a menu. */
 @Composable
-private fun SkillRow(skill: SkillInfo, onToggle: (Boolean) -> Unit, onDelete: () -> Unit, onEdit: () -> Unit = {}) {
+private fun SkillRow(
+    skill: SkillInfo, onToggle: (Boolean) -> Unit, onDelete: () -> Unit, onEdit: () -> Unit = {},
+    onDuplicate: () -> Unit = {}, onExport: () -> Unit = {},
+) {
     val k = MaterialTheme.vault
     var menuOpen by remember { mutableStateOf(false) }
     val canToggle = skill.available || skill.enabled
@@ -198,7 +224,7 @@ private fun SkillRow(skill: SkillInfo, onToggle: (Boolean) -> Unit, onDelete: ()
             .heightIn(min = 56.dp)
             .pressable(
                 onClick = { if (canToggle) onToggle(!skill.enabled) },
-                onLongClick = if (skill.deletable) ({ menuOpen = true }) else null,
+                onLongClick = { menuOpen = true },
                 pressedScale = 1f, pressed = k.pressed, role = androidx.compose.ui.semantics.Role.Switch,
             )
             .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
@@ -221,17 +247,18 @@ private fun SkillRow(skill: SkillInfo, onToggle: (Boolean) -> Unit, onDelete: ()
         }
         Spacer(Modifier.width(8.dp))
         VaultSwitch(checked = skill.enabled, onCheckedChange = null, enabled = canToggle)
-        // The menu's slot is kept on every row, so the switches stand in one column.
-        if (!skill.deletable) Spacer(Modifier.width(48.dp))
-        if (skill.deletable) {
+        // Every row has its menu: a built-in skill can be copied to make your own version.
+        run {
             Box {
                 BarButton(VaultIcons.More, "Options for ${skill.name}", { menuOpen = true }, tint = k.muted, iconSize = 20.dp)
                 DropdownMenu(
                     expanded = menuOpen, onDismissRequest = { menuOpen = false },
                     shape = RoundedCornerShape(16.dp), containerColor = k.pressed, tonalElevation = 0.dp, shadowElevation = 0.dp,
                 ) {
-                    MenuItem(VaultIcons.Pencil, "Edit") { menuOpen = false; onEdit() }
-                    MenuItem(VaultIcons.Trash, "Delete", color = k.danger) { menuOpen = false; onDelete() }
+                    if (skill.deletable) MenuItem(VaultIcons.Pencil, "Edit") { menuOpen = false; onEdit() }
+                    MenuItem(VaultIcons.Copy, if (skill.deletable) "Duplicate" else "Make my own copy") { menuOpen = false; onDuplicate() }
+                    if (skill.deletable) MenuItem(VaultIcons.Download, "Export") { menuOpen = false; onExport() }
+                    if (skill.deletable) MenuItem(VaultIcons.Trash, "Delete", color = k.danger) { menuOpen = false; onDelete() }
                 }
             }
         }

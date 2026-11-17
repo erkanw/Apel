@@ -135,9 +135,18 @@ private fun updated(context: android.content.Context): String =
 fun TextEditorScreen(title: String, subtitle: String, initial: String, hint: String, onSave: (String) -> Unit, onBack: () -> Unit) {
     val k = MaterialTheme.vault
     var text by rememberSaveable { mutableStateOf(initial) }
-    BackHandler(onBack = onBack)
+    var leaving by remember { mutableStateOf(false) }
+    // Back with unsaved changes asks first; nothing typed is lost by accident.
+    val back = { if (text != initial) leaving = true else onBack() }
+    BackHandler(onBack = back)
+    if (leaving) {
+        VaultDialog(
+            title = "Discard your changes?", text = "What you changed here isn’t saved.", confirm = "Discard", destructive = true,
+            onConfirm = { leaving = false; onBack() }, onDismiss = { leaving = false }, dismiss = "Keep editing",
+        )
+    }
     Column(Modifier.fillMaxSize().background(k.background).imePadding()) {
-        PageHeader(title, subtitle, onBack, action = { QuietButton("Save", { onSave(text) }, color = if (text != initial) k.text else k.muted) })
+        PageHeader(title, subtitle, back, action = { QuietButton("Save", { onSave(text) }, color = if (text != initial) k.text else k.muted) })
         Text(hint, style = VaultType.Caption, color = k.muted, modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 8.dp))
         BasicTextField(
             text, { text = it },
