@@ -18,10 +18,12 @@
     <string name="channel_replies_description">When %1$s finishes a reply in the background.</string>
     <string name="notification_new_message">New message</string>
     <string name="channel_working">Working</string>
-    <string name="working_title">%1$s is working on a reply</string>
-    <string name="channel_working_description">The quiet notice while %1$s is working on a reply.</string>
+    <string name="working_title">%1$s is working</string>
+    <string name="channel_working_description">The quiet notice while %1$s is working on a reply or a scheduled job.</string>
     <string name="channel_agent_notes">Notes from the agent</string>
     <string name="channel_agent_notes_description">What %1$s sends when you ask it to tell you something.</string>
     <string name="channel_approvals">Approvals</string>
     <string name="channel_approvals_description">When %1$s needs your OK to use a tool.</string>
+    <string name="channel_automations">Automations</string>
+    <string name="channel_automations_description">What %1$s posts when a scheduled job runs.</string>
 </resources>

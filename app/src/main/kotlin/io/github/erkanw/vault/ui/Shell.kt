@@ -78,6 +78,8 @@ fun VaultApp(
     var openedFrom by rememberSaveable { mutableStateOf(Screen.Settings.name) }
     // The provider page is opened from Settings or from Home's "Not connected" line: Back goes there.
     var providerFrom by rememberSaveable { mutableStateOf(Screen.Settings.name) }
+    // The automation whose runs page is open.
+    var runsFor by rememberSaveable { mutableStateOf<String?>(null) }
 
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
@@ -110,6 +112,7 @@ fun VaultApp(
         screenName = when (screen) {
             Screen.OpenRouter, Screen.Models, Screen.Look -> openedFrom
             Screen.Agent -> Screen.Settings.name
+            Screen.AutomationRuns -> Screen.Automation.name
             Screen.Provider -> providerFrom
             else -> Screen.Home.name
         }
@@ -235,18 +238,20 @@ fun VaultApp(
                         pages,
                         vm,
                         onBack = back,
-                        onRequestInNewChat = { request ->
-                            vm.newSession()
-                            vm.prefillDraft(request)
+                        // A run's row opens the chat it posted in (its channel, when it is one).
+                        onOpenChat = { id ->
+                            vm.openChatById(id)
                             screenName = Screen.Chat.name
                         },
-                        onMoveToChannel = { _, channel, request ->
-                            // The channel opens with the request in its box; nothing is sent until you do.
-                            vm.openChannel(channel)
-                            vm.prefillDraft(request)
-                            screenName = Screen.Chat.name
+                        onShowRuns = { job ->
+                            runsFor = job.id
+                            screenName = Screen.AutomationRuns.name
                         },
                     )
+                    Screen.AutomationRuns -> AutomationRunsScreen(pages, runsFor, onBack = { screenName = Screen.Automation.name }, onOpenChat = { id ->
+                        vm.openChatById(id)
+                        screenName = Screen.Chat.name
+                    })
                     Screen.Settings -> SettingsScreen(
                         settings,
                         onBack = back,
@@ -284,7 +289,7 @@ fun VaultApp(
 /** How deep a screen is in the stack: the home screen at the bottom, the usage page (reached from Settings) on top. */
 private fun depthOf(screen: Screen): Int = when (screen) {
     Screen.Home -> 0
-    Screen.OpenRouter, Screen.Models, Screen.Provider, Screen.Agent -> 2
+    Screen.OpenRouter, Screen.Models, Screen.Provider, Screen.Agent, Screen.AutomationRuns -> 2
     Screen.Look -> 3
     else -> 1
 }

@@ -25,7 +25,15 @@ data class TurnInput(
     val channelId: String? = null,
     /** The channel's description, for the system prompt. */
     val channelNote: String? = null,
+    /** Set when an automation runs this turn (PLAN §7.1 `source = Automation`). */
+    val automation: AutomationTurn? = null,
 )
+
+/**
+ * A scheduled run: which automation, the model it runs with (a preset; null: the chat's or the main model), and the name
+ * a new chat for it gets. Its instruction is kept as a hidden message: the chat shows only what the agent posted.
+ */
+data class AutomationTurn(val id: String, val name: String, val model: String?, val title: String)
 
 /**
  * Everything the screens ask of the agent (PLAN §5, "the migration trick"). Phase 0 has two: a demo one in debug builds
@@ -99,6 +107,12 @@ interface AgentBackend {
     /** [action]: `enable`, `disable`, `run` (now) or `delete`. */
     suspend fun automationAction(id: String, action: String)
 
-    /** Saves an edited automation: `name`, `message` and, when it changes, `schedule`. */
+    /** Saves an edited automation: any of `name`, `message`, `schedule`, `channel` (a channel id, or empty for a new chat each time) and `model`. */
     suspend fun automationUpdate(id: String, values: JSONObject)
+
+    /** Makes an automation from the same values; its id. */
+    suspend fun automationCreate(values: JSONObject): String = throw io.github.erkanw.vault.chat.ChatException("Automations can’t be made here.")
+
+    /** An automation's runs, newest first. */
+    suspend fun automationRuns(id: String, limit: Int = 100): List<io.github.erkanw.vault.chat.AutomationRun> = emptyList()
 }

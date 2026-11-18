@@ -27,8 +27,8 @@ object ApprovalGate {
     val pending: StateFlow<List<Request>> = _pending.asStateFlow()
 
     /** Suspends until the user answers (or the time runs out, which is a no). */
-    suspend fun ask(sessionId: String, tool: String, summary: String, detail: String, canAlways: Boolean = true): Answer {
-        val request = Request(UUID.randomUUID().toString(), sessionId, tool, summary, detail, canAlways)
+    suspend fun ask(sessionId: String, tool: String, summary: String, detail: String, canAlways: Boolean = true, id: String = UUID.randomUUID().toString()): Answer {
+        val request = Request(id, sessionId, tool, summary, detail, canAlways)
         val answer = CompletableDeferred<Answer>()
         synchronized(waiting) { waiting[request.id] = answer }
         _pending.update { it + request }

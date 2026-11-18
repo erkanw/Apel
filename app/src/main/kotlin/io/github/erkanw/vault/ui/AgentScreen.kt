@@ -15,7 +15,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -92,6 +95,28 @@ fun AgentScreen(onBack: () -> Unit, onLook: () -> Unit) {
                             else -> text.lines().first { it.isNotBlank() }.take(80)
                         }
                         GroupActionRow(item.title, sub, { editing = item.name }, chevron = true)
+                    }
+                    // The built-in nightly job (PLAN §6.8): off here is off on the Automations page too.
+                    val scope = rememberCoroutineScope()
+                    var tidy by remember { mutableStateOf<Boolean?>(null) }
+                    LaunchedEffect(Unit) {
+                        io.github.erkanw.vault.automation.Automations.ensureBuiltIns(context)
+                        tidy = io.github.erkanw.vault.automation.Automations.get(context, io.github.erkanw.vault.automation.Automations.TIDY_MEMORY)?.enabled
+                    }
+                    tidy?.let { on ->
+                        GroupDivider()
+                        GroupSwitchRow(
+                            "Tidy memory nightly",
+                            "At 03:30 $agent reads the day’s chats and keeps what’s worth remembering, on your cheapest model.",
+                            on,
+                            { next ->
+                                tidy = next
+                                scope.launch {
+                                    runCatching { io.github.erkanw.vault.automation.Automations.setEnabled(context, io.github.erkanw.vault.automation.Automations.TIDY_MEMORY, next) }
+                                        .onFailure { tidy = !next }
+                                }
+                            },
+                        )
                     }
                 }
             }

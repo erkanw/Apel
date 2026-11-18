@@ -15,6 +15,11 @@
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <!-- Dictation: the microphone is only used while you dictate, and asked for the first time you do. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Automations (PLAN §8): wake the phone on the minute when you allow it, set the alarm again after a restart, and
+         offer to be left out of battery optimisation the first time you save one. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
     <!-- The phone's speech recognizer, for dictation (Android 11+ package visibility). -->
@@ -25,6 +30,7 @@
     </queries>
 
     <application
+        android:name=".App"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -55,6 +61,25 @@
             android:name=".AgentService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- Automations: the alarm, re-arming after a restart or a clock change, and Deny from the Approvals notification. -->
+        <receiver
+            android:name=".automation.AlarmReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".automation.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name=".agent.ApprovalAlerts$DenyReceiver"
+            android:exported="false" />
 
         <!-- The OpenRouter credits and spending widget (the Usage widget from Phase 7). -->
         <receiver

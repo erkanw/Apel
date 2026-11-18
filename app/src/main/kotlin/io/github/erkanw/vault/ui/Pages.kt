@@ -45,7 +45,11 @@ import io.github.erkanw.vault.PagesViewModel
 import io.github.erkanw.vault.PageState
 import io.github.erkanw.vault.chat.AutomationJob
 import io.github.erkanw.vault.chat.Channel
-import io.github.erkanw.vault.chat.chatId
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
 import io.github.erkanw.vault.chat.SkillInfo
 import io.github.erkanw.vault.chat.shortDateTime
 import io.github.erkanw.vault.mascot.BlobFlat
@@ -270,10 +274,10 @@ fun AutomationScreen(
     vm: PagesViewModel,
     chat: ChatViewModel,
     onBack: () -> Unit,
-    /** Move a job: opens [Channel] with [String], the request to make it there and remove the original. */
-    onMoveToChannel: (AutomationJob, Channel, String) -> Unit = { _, _, _ -> },
-    /** Opens a new chat with [String] (the request to add a job) in its message box. */
-    onRequestInNewChat: (String) -> Unit = {},
+    /** Opens the chat a run posted in. */
+    onOpenChat: (String) -> Unit = {},
+    /** Opens every run of a job. */
+    onShowRuns: (AutomationJob) -> Unit = {},
 ) {
     val k = MaterialTheme.vault
     val context = LocalContext.current
@@ -281,23 +285,22 @@ fun AutomationScreen(
     var deleting by remember { mutableStateOf<AutomationJob?>(null) }
     var editing by remember { mutableStateOf<AutomationJob?>(null) }
     var creating by remember { mutableStateOf(false) }
-    val channelChats by chat.channelChats.collectAsStateWithLifecycle()
+    var saveError by remember { mutableStateOf<String?>(null) }
     val custom by chat.customChannels.collectAsStateWithLifecycle()
     val looks by chat.channelLooks.collectAsStateWithLifecycle()
+    val choices by io.github.erkanw.vault.chat.ModelsHub.choices.collectAsStateWithLifecycle()
     val channels = remember(custom, looks) { (Channel.builtIn + custom).map { it to io.github.erkanw.vault.chat.lookOf(looks, it) } }
-    // Where each job runs: the channel whose session it reports into, if any (the demo's first one runs in Daily brief).
-    fun channelFor(job: AutomationJob): Channel? = when {
-        job.channel.isNotEmpty() -> (Channel.builtIn + custom).firstOrNull { it.id == job.channel }
-        else -> io.github.erkanw.vault.chat.channelOf(channelChats, job.chatId(), Channel.builtIn + custom)
-    }
+    fun channelFor(job: AutomationJob): Channel? = job.channel.takeIf { it.isNotEmpty() }?.let { id -> (Channel.builtIn + custom).firstOrNull { it.id == id } }
     val tracker = rememberEntranceTracker()
-    LaunchedEffect(Unit) { vm.loadAutomations() }
+    val setup = rememberAutomationSetup()
+    // Again on coming back from Android’s settings: "about" goes once exact alarms are allowed.
+    LaunchedEffect(setup.resumed) { vm.loadAutomations() }
 
     Column(Modifier.fillMaxSize().background(k.background)) {
         val on = state.items.count { it.enabled }
         PageHeader(
             "Automations", if (state.items.isEmpty()) "What ${LocalAgentName.current} does on a schedule" else "$on of ${state.items.size} on", onBack,
-            action = { BarButton(VaultIcons.Plus, "New automation", { creating = true }) },
+            action = { BarButton(VaultIcons.Plus, "New automation", { saveError = null; creating = true }) },
         )
         PageBody(state, "No scheduled jobs yet.", vm::loadAutomations) { jobs ->
             LazyColumn(
@@ -305,13 +308,24 @@ fun AutomationScreen(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                // What the phone holds back, in one line with the way to change it (PLAN §6.13: a refusal is respected).
+                setup.missing(jobs.any { it.enabled && !it.builtIn })?.let { (text, action, fix) ->
+                    item(key = "setup") {
+                        Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                            Text(text, style = VaultType.Caption, color = k.attention, modifier = Modifier.padding(horizontal = 8.dp))
+                            QuietButton(action, fix, color = k.text)
+                        }
+                    }
+                }
                 itemsIndexed(jobs, key = { _, j -> j.id }) { i, job ->
                     AutomationCard(
                         job = job,
                         onToggle = { vm.automationAction(job, if (it) "enable" else "disable") },
                         onRun = { vm.automationAction(job, "run") },
                         onDelete = { deleting = job },
-                        onEdit = { editing = job },
+                        onEdit = { saveError = null; editing = job },
+                        onOpenRun = { run -> run.chatId?.let(onOpenChat) },
+                        onShowRuns = { onShowRuns(job) },
                         runsIn = channelFor(job)?.let { c -> channels.firstOrNull { it.first.id == c.id } },
                         modifier = Modifier.entrance(job.id, i, tracker, dx = 0.dp, dy = 8.dp),
                     )
@@ -324,16 +338,20 @@ fun AutomationScreen(
             job = io.github.erkanw.vault.chat.NEW_JOB,
             current = null,
             channels = channels,
-            onSave = { _, _ -> },
-            onMove = { _, _, _, _ -> },
+            models = choices.presets,
+            onSave = { values, _ ->
+                vm.createAutomation(values) { error ->
+                    saveError = error
+                    if (error == null) {
+                        creating = false
+                        // The first job saved: ask for what keeps jobs on time (PLAN §6.13).
+                        setup.afterFirstSave()
+                    }
+                }
+            },
             onNewChannel = { look -> chat.createChannel(look.title, look.blurb, look.color) },
             onDismiss = { creating = false },
-            onCreate = { channel, name, message, schedule ->
-                creating = false
-                val title = channel?.let { io.github.erkanw.vault.chat.ChannelLooks.look(it).title }
-                val request = io.github.erkanw.vault.chat.createJobRequest(name, message, schedule, title)
-                if (channel != null) onMoveToChannel(io.github.erkanw.vault.chat.NEW_JOB, channel, request) else onRequestInNewChat(request)
-            },
+            error = saveError,
         )
     }
     editing?.let { job ->
@@ -341,14 +359,10 @@ fun AutomationScreen(
             job = job,
             current = channelFor(job),
             channels = channels,
+            models = choices.presets,
             onSave = { values, schedule ->
                 vm.updateAutomation(job, values, schedule)
                 editing = null
-            },
-            onMove = { channel, name, message, schedule ->
-                editing = null
-                val title = io.github.erkanw.vault.chat.ChannelLooks.look(channel).title
-                onMoveToChannel(job, channel, io.github.erkanw.vault.chat.moveJobRequest(job, name, message, schedule, title))
             },
             onNewChannel = { look -> chat.createChannel(look.title, look.blurb, look.color) },
             onDismiss = { editing = null },
@@ -357,7 +371,7 @@ fun AutomationScreen(
     deleting?.let { job ->
         ConfirmDialog(
             title = "Delete ${job.name}?",
-            message = "The job is removed for good. To keep it but stop it running, turn it off instead.",
+            message = "The job and its run log are removed for good; what it posted stays in its chats. To keep it but stop it running, turn it off instead.",
             confirm = "Delete job",
             onConfirm = {
                 vm.automationAction(job, "delete")
@@ -366,9 +380,112 @@ fun AutomationScreen(
             onDismiss = { deleting = null },
         )
     }
+    setup.Dialog()
 }
 
-/** A scheduled job on the lift: name, schedule and switch; when it runs next and how it last went; its actions. */
+/**
+ * What keeps automations on time (PLAN §6.13): notifications for their results, exact alarms and no battery limits. Asked
+ * once, when the first job is saved; afterwards a refusal shows as one line on the page that leads to the setting.
+ */
+private class AutomationSetup(
+    private val context: android.content.Context,
+    private val askNotifications: () -> Unit,
+    private val openSettings: (android.content.Intent) -> Unit,
+) {
+    var showing by mutableStateOf(false)
+    /** Exact alarms were asked for: the battery question follows when the app is back in front. */
+    var batteryNext by mutableStateOf(false)
+    /** Ticks when the app comes back to the front, so the line re-reads what is allowed now. */
+    var resumed by mutableStateOf(0)
+
+    private val prefs = context.getSharedPreferences("automations_ui", android.content.Context.MODE_PRIVATE)
+
+    fun exact() = io.github.erkanw.vault.automation.Scheduler.canExact(context)
+    fun unlimited() = context.getSystemService(android.os.PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
+    fun notifies() = android.os.Build.VERSION.SDK_INT < 33 ||
+        context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    fun afterFirstSave() {
+        if (asked()) return
+        if (!notifies()) askNotifications()
+        // The page's line waits until the dialog is answered.
+        if (!exact() || !unlimited()) showing = true else markAsked()
+    }
+
+    private fun asked() = prefs.getBoolean("asked", false)
+    private fun markAsked() = prefs.edit().putBoolean("asked", true).apply()
+
+    fun exactAlarmsIntent() = android.content.Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:${context.packageName}"))
+
+    @android.annotation.SuppressLint("BatteryLife")
+    fun batteryIntent() = android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, android.net.Uri.parse("package:${context.packageName}"))
+
+    fun notificationsIntent() = android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+
+    /** What the page says when something holds jobs back: the line, its button, and what the button opens; null when nothing does. */
+    fun missing(anyOn: Boolean): Triple<String, String, () -> Unit>? {
+        resumed // read, so the line follows the settings
+        if (!anyOn || showing || !asked()) return null
+        return when {
+            !exact() && android.os.Build.VERSION.SDK_INT >= 31 -> Triple("Jobs run at about the time set.", "Allow exact alarms", { openSettings(exactAlarmsIntent()) })
+            !notifies() -> Triple("Results won’t show as notifications.", "Allow notifications", { openSettings(notificationsIntent()) })
+            else -> null
+        }
+    }
+
+    @Composable
+    fun Dialog() {
+        androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+            resumed++
+            if (batteryNext) {
+                batteryNext = false
+                if (!unlimited()) openSettings(batteryIntent())
+            }
+            onPauseOrDispose { }
+        }
+        if (!showing) return
+        val app = remember { context.applicationInfo.loadLabel(context.packageManager).toString() }
+        VaultDialog(
+            title = "Keep jobs on time",
+            text = "Android holds back apps in the background. To start jobs on the minute with the screen off, allow $app " +
+                "to set exact alarms and to run without battery limits. You can change both later in Android’s settings.",
+            confirm = "Allow",
+            dismiss = "Not now",
+            onConfirm = {
+                showing = false
+                markAsked()
+                if (!exact() && android.os.Build.VERSION.SDK_INT >= 31) {
+                    batteryNext = true
+                    openSettings(exactAlarmsIntent())
+                } else if (!unlimited()) {
+                    openSettings(batteryIntent())
+                }
+            },
+            onDismiss = { showing = false; markAsked() },
+        )
+    }
+}
+
+@Composable
+private fun rememberAutomationSetup(): AutomationSetup {
+    val context = LocalContext.current
+    val notifications = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { }
+    return remember {
+        AutomationSetup(
+            context,
+            askNotifications = {
+                io.github.erkanw.vault.data.BlobPrefs.setNotificationsAsked(context)
+                if (android.os.Build.VERSION.SDK_INT >= 33) notifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            },
+            openSettings = { intent -> runCatching { context.startActivity(intent) } },
+        )
+    }
+}
+
+/** A scheduled job on the lift: name, schedule and switch; when it runs next; its last runs; its actions. */
 @Composable
 private fun AutomationCard(
     job: AutomationJob,
@@ -376,25 +493,37 @@ private fun AutomationCard(
     onRun: () -> Unit,
     onDelete: () -> Unit,
     onEdit: () -> Unit,
-    /** The channel the job runs in, with its look; null for an ordinary chat. */
+    onOpenRun: (io.github.erkanw.vault.chat.AutomationRun) -> Unit,
+    onShowRuns: () -> Unit,
+    /** The channel the job posts in, with its look; null for a new chat each time. */
     runsIn: Pair<Channel, io.github.erkanw.vault.chat.ChannelLook>?,
     modifier: Modifier = Modifier,
 ) {
     val k = MaterialTheme.vault
-    val failed = job.lastStatus.isNotBlank() && job.lastStatus != "ok"
+    val failed = job.lastStatus == "error"
     VaultGroup(modifier) {
         Row(
             Modifier.fillMaxWidth().pressable(onClick = { onToggle(!job.enabled) }, pressedScale = 1f, pressed = k.pressed, role = androidx.compose.ui.semantics.Role.Switch)
+                .semantics { toggleableState = androidx.compose.ui.state.ToggleableState(job.enabled) }
                 .padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text(job.name, style = VaultType.Body.copy(fontWeight = VaultType.Row.fontWeight), color = k.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(job.name, style = VaultType.Body.copy(fontWeight = VaultType.Row.fontWeight), color = k.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (job.builtIn) {
+                        Spacer(Modifier.width(8.dp))
+                        Text("Built in", style = VaultType.Caption, color = k.muted, maxLines = 1)
+                    }
+                }
                 if (job.schedule.isNotBlank()) Text(job.schedule, style = VaultType.Label.copy(fontWeight = null), color = k.muted)
-                if (runsIn != null) Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                    BlobFlat(ChannelColors.at(runsIn.second.color), size = 14.dp)
-                    Spacer(Modifier.width(6.dp))
-                    Text("In ${runsIn.second.title}", style = VaultType.Caption, color = k.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                when {
+                    runsIn != null -> Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                        BlobFlat(ChannelColors.at(runsIn.second.color), size = 14.dp)
+                        Spacer(Modifier.width(6.dp))
+                        Text("In ${runsIn.second.title}", style = VaultType.Caption, color = k.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    !job.builtIn -> Text("A new chat each time", style = VaultType.Caption, color = k.muted, modifier = Modifier.padding(top = 3.dp))
                 }
             }
             VaultSwitch(checked = job.enabled, onCheckedChange = null)
@@ -406,10 +535,15 @@ private fun AutomationCard(
                     Spacer(Modifier.width(8.dp))
                     Text("Running now", style = VaultType.Label.copy(fontWeight = null), color = k.text)
                 }
+                // A once job that has run turned itself off: its run log says what happened.
+                !job.enabled && job.scheduleKind == "at" && job.lastRunMs > 0L -> Unit
                 !job.enabled -> Text("Off", style = VaultType.Label.copy(fontWeight = null), color = k.muted)
-                job.nextRunMs > 0L -> Text("Next run ${whenLabel(System.currentTimeMillis(), job.nextRunMs)}", style = VaultType.Label.copy(fontWeight = null), color = k.text)
+                job.nextRunMs > 0L -> Text(
+                    "Next run " + whenLabel(System.currentTimeMillis(), job.nextRunMs).replace("Tomorrow", "tomorrow").let { if (job.exact) it else "about $it" },
+                    style = VaultType.Label.copy(fontWeight = null), color = k.text,
+                )
             }
-            if (job.lastRunMs > 0L) {
+            if (job.runs.isEmpty() && job.lastRunMs > 0L) {
                 Text(
                     "Last run ${shortDateTime(job.lastRunMs)} · ${job.lastStatus.ifBlank { "done" }}" +
                         if (failed && job.lastError.isNotBlank()) " · ${job.lastError.take(80)}" else "",
@@ -423,10 +557,22 @@ private fun AutomationCard(
                 )
             }
         }
+        // The run log (handbook §3): the latest runs, each opening the chat it posted in.
+        val shown = job.runs.filter { it.status != "running" }.take(RUNS_ON_CARD)
+        if (shown.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            GroupDivider()
+            shown.forEach { run -> RunRow(run, onClick = if (run.chatId != null) ({ onOpenRun(run) }) else null) }
+        }
         // Run now stays at hand; editing and deleting wait in the menu, as on Skills (nothing destructive at rest).
         var menuOpen by remember { mutableStateOf(false) }
-        Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 4.dp, top = 2.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+        // Starts at 0 so the button's text lines up with the card's 16dp text edge.
+        Row(Modifier.fillMaxWidth().padding(end = 4.dp, top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (job.runs.count { it.status != "running" } > RUNS_ON_CARD) QuietButton("Show all runs", onShowRuns, color = k.muted)
+            Spacer(Modifier.weight(1f))
             QuietButton(if (job.pending) "Running…" else "Run now", { if (!job.pending) onRun() }, color = if (job.pending) k.faint else k.text)
+            // A built-in job has no menu; its slot stays so Run now lines up with the other cards.
+            if (job.protected) Spacer(Modifier.width(48.dp))
             if (!job.protected) {
                 Box {
                     BarButton(VaultIcons.More, "Options for ${job.name}", { menuOpen = true }, tint = k.muted, iconSize = 20.dp)
@@ -436,6 +582,95 @@ private fun AutomationCard(
                     ) {
                         MenuItem(VaultIcons.Pencil, "Edit") { menuOpen = false; onEdit() }
                         MenuItem(VaultIcons.Trash, "Delete", color = k.danger) { menuOpen = false; onDelete() }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Runs a card shows; the rest are on the runs page. */
+private const val RUNS_ON_CARD = 5
+
+/** One run in a log: its outcome as a dot, when, and its first line (or why it failed or was skipped). */
+@Composable
+private fun RunRow(run: io.github.erkanw.vault.chat.AutomationRun, onClick: (() -> Unit)?) {
+    val k = MaterialTheme.vault
+    val color = when (run.status) {
+        "ok" -> k.live
+        "error" -> k.danger
+        "running" -> k.live
+        else -> k.faint
+    }
+    val outcome = when (run.status) {
+        "ok" -> "Done"
+        "error" -> "Failed"
+        "running" -> "Running"
+        "skipped" -> "Skipped"
+        else -> "Stopped"
+    }
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            .then(if (onClick != null) Modifier.pressable(onClick = onClick, pressedScale = 1f, pressed = k.pressed, onClickLabel = "Open the chat") else Modifier)
+            .semantics(mergeDescendants = true) { contentDescription = "$outcome, ${runTimeLabel(run.startedMs)}: ${run.summary}" }
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (run.status == "running") PulsingDot(color, size = 7.dp)
+        else Box(Modifier.size(7.dp).clip(CircleShape).background(color))
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(runTimeLabel(run.startedMs), style = VaultType.Caption, color = k.muted, maxLines = 1)
+            Text(
+                run.summary.ifBlank { outcome }, style = VaultType.Label.copy(fontWeight = null),
+                color = if (run.status == "error") k.danger else k.text, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (onClick != null) {
+            Spacer(Modifier.width(8.dp))
+            Icon(VaultIcons.ChevronRight, null, tint = k.faint, modifier = Modifier.size(16.dp))
+        }
+    }
+}
+
+/** "Today 09:00", "Yesterday 21:30", "Mon 08:00", "12 Nov 09:00". */
+internal fun runTimeLabel(at: Long, now: Long = System.currentTimeMillis(), zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): String {
+    val day = java.time.Instant.ofEpochMilli(at).atZone(zone)
+    val today = java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+    val time = day.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm", java.util.Locale.getDefault()))
+    val d = day.toLocalDate()
+    return when {
+        d == today -> "Today $time"
+        d == today.minusDays(1) -> "Yesterday $time"
+        d.isAfter(today.minusDays(7)) -> day.format(java.time.format.DateTimeFormatter.ofPattern("EEE", java.util.Locale.getDefault())) + " " + time
+        else -> day.format(java.time.format.DateTimeFormatter.ofPattern("d MMM", java.util.Locale.getDefault())) + " " + time
+    }
+}
+
+/** Every run of one job kept on the phone (the last 100), newest first; each opens the chat it posted in. */
+@Composable
+fun AutomationRunsScreen(vm: PagesViewModel, jobId: String?, onBack: () -> Unit, onOpenChat: (String) -> Unit) {
+    val k = MaterialTheme.vault
+    val state by vm.automations.collectAsStateWithLifecycle()
+    val job = state.items.firstOrNull { it.id == jobId }
+    var runs by remember { mutableStateOf<List<io.github.erkanw.vault.chat.AutomationRun>?>(null) }
+    LaunchedEffect(job?.id, job?.lastRunMs, job?.pending) { if (job != null) runs = vm.automationRuns(job) }
+    Column(Modifier.fillMaxSize().background(k.background)) {
+        PageHeader(job?.name ?: "Runs", runs?.let { "${it.size} run${if (it.size == 1) "" else "s"}" }.orEmpty(), onBack)
+        val list = runs
+        when {
+            list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { TypingDots(k.muted) }
+            list.isEmpty() -> Text("No runs yet.", style = VaultType.Body, color = k.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(32.dp))
+            else -> LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
+            ) {
+                item(key = "runs") {
+                    VaultGroup {
+                        list.forEachIndexed { i, run ->
+                            if (i > 0) GroupDivider()
+                            RunRow(run, onClick = run.chatId?.let { id -> { onOpenChat(id) } })
+                        }
                     }
                 }
             }

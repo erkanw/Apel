@@ -126,6 +126,24 @@ data class AutomationJob(
     val atMs: Long = 0L,
     /** The session the job runs in and reports into, if it has one. */
     val sessionKey: String = "",
+    /** The model preset it runs with; empty: the main model. */
+    val model: String = "",
+    /** A system job (Tidy memory): it can be turned off but not deleted or edited. */
+    val builtIn: Boolean = false,
+    /** Its latest runs, newest first. */
+    val runs: List<AutomationRun> = emptyList(),
+    /** False when the phone only allows inexact alarms: it then runs at about the time set. */
+    val exact: Boolean = true,
+)
+
+/** One run of an automation, for its run log: when, how it went ("ok", "error", "skipped", "stopped", "running"), its first line, and where. */
+data class AutomationRun(
+    val id: Long,
+    val startedMs: Long,
+    val status: String,
+    val summary: String,
+    val chatId: String? = null,
+    val messageId: Long? = null,
 )
 
 /** A schedule in words: "Every day at 20:30", "Every 2 hours", "Once, Sat 10 Oct, 20:30", or the raw cron. */

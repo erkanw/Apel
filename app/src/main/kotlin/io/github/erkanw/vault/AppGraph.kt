@@ -19,4 +19,12 @@ object AppGraph {
         backend ?: (DemoMode.backend(context.applicationContext)
             ?: LocalBackend(context.applicationContext)).also { backend = it }
     }
+
+    @Volatile
+    private var local: LocalBackend? = null
+
+    /** The on-device agent, even in demo mode: automations always run on it. The same one the screens use otherwise. */
+    fun local(context: Context): LocalBackend = (backend(context) as? LocalBackend) ?: local ?: synchronized(this) {
+        local ?: LocalBackend(context.applicationContext).also { local = it }
+    }
 }

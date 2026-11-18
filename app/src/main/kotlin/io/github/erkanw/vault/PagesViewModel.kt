@@ -63,6 +63,27 @@ class PagesViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadAutomations() = load(_automations) { backend.automations() }
 
+    init {
+        // A run started or ended, or the agent changed a job: the page shows it (quietly, keeping what is shown meanwhile).
+        viewModelScope.launch {
+            io.github.erkanw.vault.automation.Automations.version.collect {
+                if (it > 0L && backend.connected) runCatching { backend.automations() }.onSuccess { list -> _automations.value = PageState(items = list) }
+            }
+        }
+    }
+
+    /** Makes an automation; [onDone] gets null, or why it failed. */
+    fun createAutomation(values: JSONObject, onDone: (String?) -> Unit) {
+        viewModelScope.launch {
+            val error = try { backend.automationCreate(values); null } catch (e: CancellationException) { throw e } catch (e: Exception) { e.message ?: "Couldn’t save the automation." }
+            onDone(error)
+            loadAutomations()
+        }
+    }
+
+    /** Every run of [job] kept on the phone, newest first, for the runs page. */
+    suspend fun automationRuns(job: AutomationJob) = runCatching { backend.automationRuns(job.id) }.getOrDefault(emptyList())
+
     /** Turns a skill on or off. */
     fun setSkillEnabled(skill: SkillInfo, enabled: Boolean) = act(
         _skills,
@@ -137,9 +158,13 @@ class PagesViewModel(app: Application) : AndroidViewModel(app) {
                 if (it.id != job.id) it else if (schedule == null) it.copy(
                     name = values.optString("name", it.name),
                     message = values.optString("message", it.message),
+                    channel = values.optString("channel", it.channel),
+                    model = values.optString("model", it.model),
                 ) else it.copy(
                     name = values.optString("name", it.name),
                     message = values.optString("message", it.message),
+                    channel = values.optString("channel", it.channel),
+                    model = values.optString("model", it.model),
                     schedule = describeSchedule(schedule),
                     scheduleKind = schedule.optString("kind"),
                     cronExpr = schedule.optString("expr"),

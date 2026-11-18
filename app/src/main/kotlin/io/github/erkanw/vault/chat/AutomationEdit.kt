@@ -8,10 +8,9 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
- * Editing a scheduled job, as the agent’s WebUI does it: `automation.update` with `{name, message, schedule}`, where the
- * schedule is sent only when it changed and is one of `{kind: "every", every_ms}`, `{kind: "cron", expr, tz?}` or
- * `{kind: "at", at_ms}`. The server can't move a job to another chat (a job belongs to the chat it was made from), so a
- * new channel is reached by asking the agent, in that channel, to make the job there and remove this one ([moveJobRequest]).
+ * Editing a scheduled job (PLAN §8): the sheet's fields, and what they make. A schedule is one of
+ * `{kind: "every", every_ms}`, `{kind: "cron", expr, tz?}` or `{kind: "at", at_ms}` ([io.github.erkanw.vault.automation.Schedule]);
+ * it is only checked and sent when one of its fields changed, so renaming a job never rewrites its schedule.
  */
 enum class EveryUnit(val label: String, val ms: Long) {
     Minutes("Minutes", 60_000L),
@@ -57,7 +56,14 @@ sealed interface ScheduleResult {
     data class Invalid(val reason: String) : ScheduleResult
 }
 
-fun ScheduleDraft.toSchedule(zone: ZoneId = ZoneId.systemDefault(), now: Long = System.currentTimeMillis()): ScheduleResult = when (kind) {
+fun ScheduleDraft.toSchedule(zone: ZoneId = ZoneId.systemDefault(), now: Long = System.currentTimeMillis()): ScheduleResult =
+    when (val r = fieldsToSchedule(zone, now)) {
+        is ScheduleResult.Invalid -> r
+        // Then the rules every schedule follows: at most every 15 minutes, a cron that parses, a time in the future.
+        is ScheduleResult.Ok -> io.github.erkanw.vault.automation.Schedule.fromJson(r.json)?.problem(now)?.let { ScheduleResult.Invalid(it) } ?: r
+    }
+
+private fun ScheduleDraft.fieldsToSchedule(zone: ZoneId, now: Long): ScheduleResult = when (kind) {
     "every" -> {
         val n = everyValue.trim().toLongOrNull()
         if (n == null || n <= 0L) ScheduleResult.Invalid("Enter a whole number above zero.")
@@ -140,65 +146,13 @@ fun automationEdit(
     }
 }
 
-/** The chat a job reports into, from its session key (`websocket:<chat id>`); null for a job from elsewhere. */
-fun AutomationJob.chatId(): String? = sessionKey.ifBlank { null }
-
-/**
- * The message that asks the agent, from inside [channelTitle]'s chat, to make [job] there (with the name, schedule and
- * instruction as edited) and then remove the original, so the job moves. Put in the message box to read before sending.
- */
-fun moveJobRequest(job: AutomationJob, name: String, message: String, schedule: JSONObject?, channelTitle: String): String {
-    val s = if (schedule == null) "exactly the schedule of the existing job" + if (job.schedule.isNotBlank()) " (${job.schedule})" else "" else when (schedule.optString("kind")) {
-        "cron" -> "cron_expr \"${schedule.optString("expr")}\"" + schedule.optString("tz").let { if (it.isBlank()) "" else " with tz \"$it\"" }
-        "every" -> "every_seconds ${schedule.optLong("every_ms") / 1000L}"
-        else -> "at ${java.time.Instant.ofEpochMilli(schedule.optLong("at_ms"))} (one time only)"
-    }
-    val described = schedule?.let { describeSchedule(it) }.orEmpty()
-    return buildString {
-        appendLine("Please move one of my scheduled jobs into this chat ($channelTitle), with your cron tool: first add a new job from this chat so that it reports here, then remove my existing job \"${job.name}\" (id ${job.id}). Copy the instruction exactly: do not reword, shorten or improve it, and do not change, disable or delete any other job.")
-        appendLine()
-        appendLine("Name: ${name.trim()}")
-        appendLine("Schedule: $s" + if (described.isNotBlank()) " ($described)" else "")
-        // A paused job stays paused where it goes.
-        if (!job.enabled) appendLine("Create it turned off, as the current one is off.")
-        appendLine("Instruction, word for word between the markers:")
-        appendLine("<<<")
-        appendLine(message.trim())
-        appendLine(">>>")
-        appendLine()
-        append("When it is done, tell me the new job's id and when it will next run.")
-    }
-}
-
 /** A job that doesn't exist yet, for the editor's "new" mode: no id, no schedule, on. */
 val NEW_JOB = AutomationJob("", "", true, false, "", 0L, 0L, "", "", false, "", "")
 
 /** A new job's schedule fields: every day at 09:00 in the phone's time zone, already counted as chosen. */
-fun newScheduleDraft(zone: ZoneId = ZoneId.systemDefault()): ScheduleDraft =
-    ScheduleDraft(kind = "cron", cronExpr = "0 9 * * *", tz = zone.id, touched = true)
-
-/**
- * The message that asks the agent, from inside the chat it should report into, to add a new scheduled job. The server has no
- * call to create one (the WebUI leaves it to the agent too), so the app writes the request and you send it.
- */
-fun createJobRequest(name: String, message: String, schedule: JSONObject, chatTitle: String?): String {
-    val s = when (schedule.optString("kind")) {
-        "cron" -> "cron_expr \"${schedule.optString("expr")}\"" + schedule.optString("tz").let { if (it.isBlank()) "" else " with tz \"$it\"" }
-        "every" -> "every_seconds ${schedule.optLong("every_ms") / 1000L}"
-        else -> "at ${java.time.Instant.ofEpochMilli(schedule.optLong("at_ms"))} (one time only)"
-    }
-    val described = describeSchedule(schedule)
-    val where = if (chatTitle.isNullOrBlank()) "this chat" else "this chat ($chatTitle)"
-    return buildString {
-        appendLine("Please add a new scheduled job with your cron tool, created from $where so that it reports here. Use the instruction exactly as written: do not reword, shorten or improve it, and do not change, disable or delete any other job.")
-        appendLine()
-        appendLine("Name: ${name.trim()}")
-        appendLine("Schedule: $s" + if (described.isNotBlank()) " ($described)" else "")
-        appendLine("Instruction, word for word between the markers:")
-        appendLine("<<<")
-        appendLine(message.trim())
-        appendLine(">>>")
-        appendLine()
-        append("When it is created, tell me its id and when it will first run.")
-    }
+fun newScheduleDraft(zone: ZoneId = ZoneId.systemDefault(), now: Long = System.currentTimeMillis()): ScheduleDraft {
+    // "Once" starts at the next full hour, so switching to it shows a time that can be saved as it is.
+    val next = java.time.Instant.ofEpochMilli(now).atZone(zone).plusHours(1).withMinute(0).withSecond(0).withNano(0)
+    return ScheduleDraft(kind = "cron", cronExpr = "0 9 * * *", tz = zone.id, date = next.format(DATE), time = next.format(TIME), touched = true)
 }
+

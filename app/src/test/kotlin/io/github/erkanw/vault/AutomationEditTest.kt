@@ -5,8 +5,6 @@ import io.github.erkanw.vault.chat.EditResult
 import io.github.erkanw.vault.chat.EveryUnit
 import io.github.erkanw.vault.chat.ScheduleResult
 import io.github.erkanw.vault.chat.automationEdit
-import io.github.erkanw.vault.chat.chatId
-import io.github.erkanw.vault.chat.moveJobRequest
 import io.github.erkanw.vault.chat.scheduleDraftOf
 import io.github.erkanw.vault.chat.toSchedule
 import org.junit.Assert.assertEquals
@@ -94,22 +92,10 @@ class AutomationEditTest {
     }
 
     @Test
-    fun `a paused job moves paused, and an unknown schedule is kept as it is`() {
-        val off = job("local").copy(enabled = false, schedule = "On a trigger")
-        val text = moveJobRequest(off, "Plants", "Water them.", null, "Home")
-        assertTrue(text.contains("Create it turned off"))
-        assertTrue(text.contains("exactly the schedule of the existing job (On a trigger)"))
-        assertFalse(moveJobRequest(job("every", everyMs = 60_000L), "a", "b", null, "Home").contains("turned off"))
-    }
-
-    @Test
-    fun `the move request names the job to remove and carries the instruction word for word`() {
-        val j = job("cron", "6 8 * * *", "Europe/Stockholm")
-        val ok = automationEdit(j, "Brief", "Send me the news.\nThree links.", scheduleDraftOf(j, zone, now), zone, now) as EditResult.Ok
-        val text = moveJobRequest(j, "Brief", "Send me the news.\nThree links.", ok.schedule, "Daily brief")
-        assertTrue(text.contains("(Daily brief)"))
-        assertTrue(text.contains("id j1"))
-        assertTrue(text.contains("cron_expr \"6 8 * * *\" with tz \"Europe/Stockholm\""))
-        assertTrue(text.contains("<<<\nSend me the news.\nThree links.\n>>>"))
+    fun `a job runs every 15 minutes at most`() {
+        val draft = scheduleDraftOf(job("every", everyMs = 3_600_000L), zone, now).copy(touched = true)
+        assertTrue(draft.copy(everyValue = "10", everyUnit = EveryUnit.Minutes).toSchedule(zone, now) is ScheduleResult.Invalid)
+        assertTrue(draft.copy(everyValue = "15", everyUnit = EveryUnit.Minutes).toSchedule(zone, now) is ScheduleResult.Ok)
+        assertTrue(draft.copy(kind = "cron", cronExpr = "*/5 * * * *").toSchedule(zone, now) is ScheduleResult.Invalid)
     }
 }

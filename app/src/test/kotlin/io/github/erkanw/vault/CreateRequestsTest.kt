@@ -3,7 +3,6 @@ package io.github.erkanw.vault
 import io.github.erkanw.vault.chat.EditResult
 import io.github.erkanw.vault.chat.NEW_JOB
 import io.github.erkanw.vault.chat.automationEdit
-import io.github.erkanw.vault.chat.createJobRequest
 import io.github.erkanw.vault.chat.createSkillRequest
 import io.github.erkanw.vault.chat.newScheduleDraft
 import io.github.erkanw.vault.chat.skillMarkdown
@@ -26,16 +25,6 @@ class CreateRequestsTest {
         assertEquals("0 9 * * *", ok.schedule!!.getString("expr"))
         assertEquals("Europe/Stockholm", ok.schedule!!.getString("tz"))
         assertTrue(ok.values.has("schedule"))
-    }
-
-    @Test
-    fun `the create request names the chat, the schedule and the instruction word for word`() {
-        val ok = automationEdit(NEW_JOB, "Brief", "Send me the news.\nThree \"links\".", newScheduleDraft(zone), zone) as EditResult.Ok
-        val inChannel = createJobRequest("Brief", "Send me the news.\nThree \"links\".", ok.schedule!!, "Morning brief")
-        assertTrue(inChannel.contains("this chat (Morning brief)"))
-        assertTrue(inChannel.contains("cron_expr \"0 9 * * *\" with tz \"Europe/Stockholm\""))
-        assertTrue(inChannel.contains("<<<\nSend me the news.\nThree \"links\".\n>>>"))
-        assertTrue(createJobRequest("Brief", "x", ok.schedule!!, null).contains("created from this chat so"))
     }
 
     @Test

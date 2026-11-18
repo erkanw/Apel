@@ -191,6 +191,19 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         ChannelLooks.ensureLoaded(app)
         ModelPrefsStore.ensureLoaded(app)
         onVisible()
+        // An automation started or finished a turn somewhere: the drawer, the channels and the open chat catch up.
+        viewModelScope.launch {
+            io.github.erkanw.vault.agent.SessionEvents.changes.collect { id ->
+                _channelChats.value = settings.channelChats()
+                refreshSessions()
+                val pending = _pendingChannel.value
+                when {
+                    // The empty channel on screen just got its chat from a scheduled run: show it.
+                    _currentChatId.value == null && pending != null && _channelChats.value[pending.id] == id -> openSession(id)
+                    id == _currentChatId.value && !_busy.value -> syncCurrentThread()
+                }
+            }
+        }
     }
 
     /** Called when the app comes to the front. */
@@ -661,6 +674,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         if (!channel.custom) return
         ChannelLooks.delete(getApplication(), channel)
         settings.setChannelChat(channel.id, null)
+        // Its automations go on, each in a new chat.
+        val app = getApplication<Application>()
+        viewModelScope.launch { runCatching { io.github.erkanw.vault.automation.Automations.forgetChannel(app, channel.id) } }
         _channelChats.value = settings.channelChats()
         if (_pendingChannel.value?.id == channel.id) _pendingChannel.value = null
     }

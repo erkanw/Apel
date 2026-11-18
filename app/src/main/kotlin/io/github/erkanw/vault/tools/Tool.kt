@@ -13,7 +13,14 @@ enum class ToolLevel(val id: String, val label: String) {
 }
 
 /** Where a tool runs: the app, the session it runs for, and what this turn has done so far. */
-class ToolContext(val app: Context, val sessionId: String) {
+class ToolContext(
+    val app: Context,
+    val sessionId: String,
+    /** The automation running this turn, if one is: approvals then always come as a notification. */
+    val automation: String? = null,
+    /** The channel this chat is, if it is one (a new automation made here posts here). */
+    val channelId: String? = null,
+) {
     /** The turn read the web (a page or a search): what it keeps in memory now asks first (PLAN §10). */
     @Volatile var readWeb = false
 

@@ -11,6 +11,8 @@ import java.util.Locale
 fun systemPrompt(
     agentName: String, now: ZonedDateTime, channel: String? = null, memory: String = "", tools: Boolean = false,
     instructions: String = "", aboutYou: String = "", skills: String = "", summary: String = "",
+    /** The automation's name when this is a scheduled run. */
+    scheduled: String? = null,
 ): String = buildString {
     append("You are ").append(agentName).append(", the user’s own AI agent. You run in the Apel app on their Android phone. ")
     append("Answer clearly and briefly: they read you on a phone. Use Markdown when it helps (short lists, small tables, code blocks). ")
@@ -31,6 +33,10 @@ fun systemPrompt(
     append("Now: ").append(now.format(DateTimeFormatter.ofPattern("EEEE d MMMM yyyy, HH:mm", Locale.ENGLISH)))
     append(" (").append(now.zone.id).append(").")
     if (!channel.isNullOrBlank()) append("\n\nThis chat is a channel: ").append(channel).append(". Keep to what it is for.")
+    if (!scheduled.isNullOrBlank()) {
+        append("\n\nThis is a scheduled run of “").append(scheduled).append("”: the user isn’t watching, and reads your answer later as a post. ")
+        append("Do what the message asks and report briefly. Don’t ask questions back; if something is missing, say what in one line.")
+    }
     if (summary.isNotBlank()) append("\n\n## Earlier in this chat\nA summary of the older part of this conversation, which you no longer see in full:\n").append(summary.trim())
     if (memory.isNotBlank()) {
         append("\n\n## Your memory (memory/MEMORY.md)\n")

@@ -1,6 +1,5 @@
 package io.github.erkanw.vault.ui
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -33,6 +31,7 @@ import io.github.erkanw.vault.chat.Channel
 import io.github.erkanw.vault.chat.ChannelLook
 import io.github.erkanw.vault.chat.EditResult
 import io.github.erkanw.vault.chat.EveryUnit
+import io.github.erkanw.vault.chat.ModelPreset
 import io.github.erkanw.vault.chat.ScheduleResult
 import io.github.erkanw.vault.chat.automationEdit
 import io.github.erkanw.vault.chat.describeSchedule
@@ -41,45 +40,46 @@ import io.github.erkanw.vault.chat.toSchedule
 import io.github.erkanw.vault.mascot.BlobFlat
 
 /**
- * Edits a scheduled job: its name, what the agent should do, when, and the channel it runs in. Name, instruction and schedule
- * are saved on the server at once (`automation.update`). The server can't move a job to another chat, so picking another
- * channel opens that channel with a request for the agent to make the job there and remove this one, to read and send.
- *
- * With [NEW_JOB] it makes a job instead: the server has no call for that either, so it opens the chosen channel (or a
- * new chat) with a request for the agent to add the job there.
+ * Makes or edits a scheduled job (PLAN §6.8): its name, what the agent should do, when, where it posts (a channel, a new
+ * channel, or a new chat each time) and the model it runs with. Saving keeps it at once. The schedule is only checked and
+ * sent once one of its fields changed, so a rename never rewrites it. A channel made here is only kept when the job is
+ * saved into it.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AutomationEditSheet(
     job: AutomationJob,
-    /** The channel the job runs in now, or null when it runs in an ordinary chat (or somewhere else). */
+    /** The channel the job posts in now, or null for a new chat each time (or a new job). */
     current: Channel?,
     channels: List<Pair<Channel, ChannelLook>>,
+    models: List<ModelPreset>,
+    /** The values to keep: `name`, `message`, `schedule` (when it changed), `channel` and `model`. */
     onSave: (values: org.json.JSONObject, schedule: org.json.JSONObject?) -> Unit,
-    onMove: (channel: Channel, name: String, message: String, schedule: org.json.JSONObject?) -> Unit,
     /** Makes a channel; only called when the job is saved into one made here, so a cancelled sheet leaves none behind. */
     onNewChannel: (ChannelLook) -> Channel,
     onDismiss: () -> Unit,
-    /** New-job mode: the chat it goes into (null: a new chat), and the job as filled in. */
-    onCreate: (channel: Channel?, name: String, message: String, schedule: org.json.JSONObject) -> Unit = { _, _, _, _ -> },
+    /** Why the last save failed, shown above the button. */
+    error: String? = null,
 ) {
     val isNew = job.id.isEmpty()
     val k = MaterialTheme.vault
+    val agent = LocalAgentName.current
     var name by remember { mutableStateOf(job.name) }
     var message by remember { mutableStateOf(job.message) }
     var draft by remember { mutableStateOf(if (isNew) io.github.erkanw.vault.chat.newScheduleDraft() else scheduleDraftOf(job)) }
     // Any change to the schedule's fields marks it touched; until then the job keeps the schedule it has.
     fun edit(d: io.github.erkanw.vault.chat.ScheduleDraft) { draft = d.copy(touched = true) }
     var target by remember { mutableStateOf(current) }
+    var model by remember { mutableStateOf(job.model.ifEmpty { null }) }
     var made by remember { mutableStateOf<List<Pair<Channel, ChannelLook>>>(emptyList()) }
     var creating by remember { mutableStateOf(false) }
     var tried by remember { mutableStateOf(false) }
 
     val edit = automationEdit(job, name, message, draft)
     val preview = if (!draft.touched) job.schedule else (draft.toSchedule() as? ScheduleResult.Ok)?.let { describeSchedule(it.json) }
-    val moving = !isNew && target != null && target?.id != current?.id
-    val targetTitle = shownTitle(target, channels, made)
     val shownChannels = channels + made.filter { m -> channels.none { it.first.id == m.first.id } }
+    // Presets hidden from the chat’s model list stay out here too, unless this job uses one.
+    val shownModels = models.filterNot { it.hidden && it.name != model }
 
     VaultSheet(onDismiss = onDismiss, title = if (isNew) "New automation" else "Edit automation") {
         Column(
@@ -88,8 +88,8 @@ fun AutomationEditSheet(
         ) {
             VaultField(name, { name = it.take(80) }, "Name", isError = tried && name.isBlank())
             VaultField(
-                message, { message = it }, "What ${LocalAgentName.current} should do", singleLine = false, minLines = 3,
-                supporting = "${LocalAgentName.current} reads this each time the job runs.", isError = tried && message.isBlank(),
+                message, { message = it }, "What $agent should do", singleLine = false, minLines = 3,
+                supporting = "$agent reads this each time the job runs, without the chat around it.", isError = tried && message.isBlank(),
             )
 
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -131,9 +131,7 @@ fun AutomationEditSheet(
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Runs in", style = VaultType.Label, color = k.muted)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (current == null) {
-                        VaultChip(if (isNew) "A new chat" else "Its own chat", { target = null }, selected = target == null)
-                    }
+                    VaultChip("A new chat each time", { target = null }, selected = target == null)
                     shownChannels.forEach { (channel, look) ->
                         VaultChip(
                             look.title, { target = channel }, selected = target?.id == channel.id,
@@ -142,48 +140,43 @@ fun AutomationEditSheet(
                     }
                     VaultChip("New channel", { creating = true }, leading = { Icon(VaultIcons.Plus, null, tint = k.text, modifier = Modifier.size(16.dp)) })
                 }
-                if (isNew) {
-                    Text(
-                        "${LocalAgentName.current} adds new jobs itself, from the chat they report into. This opens " +
-                            (targetTitle?.let { "“$it”" } ?: "a new chat") + " with a request for it. You read it and send it.",
-                        style = VaultType.Caption, color = k.muted,
-                    )
-                }
-                AnimatedVisibility(moving) {
-                    Text(
-                        "${LocalAgentName.current} can’t move a job between chats by itself. Saving opens " +
-                            "“${shownChannels.firstOrNull { it.first.id == target?.id }?.second?.title.orEmpty()}” with a request for ${LocalAgentName.current} to " +
-                            "add this job there and remove this one. You read it and send it.",
-                        style = VaultType.Caption, color = k.muted,
-                    )
+                Text(
+                    if (target == null) "Each run starts a chat named after the job." else "Each run posts in the channel, after what is already there.",
+                    style = VaultType.Caption, color = k.muted,
+                )
+            }
+
+            if (shownModels.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Model", style = VaultType.Label, color = k.muted)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        VaultChip("Main model", { model = null }, selected = model == null)
+                        shownModels.forEach { p -> VaultChip(p.label.ifBlank { p.name }, { model = p.name }, selected = model == p.name) }
+                    }
                 }
             }
 
-            if (tried && edit is EditResult.Invalid) Text(edit.reason, style = VaultType.Caption, color = k.attention)
+            when {
+                tried && edit is EditResult.Invalid -> Text(edit.reason, style = VaultType.Caption, color = k.attention)
+                error != null -> Text(error, style = VaultType.Caption, color = k.attention)
+            }
             PrimaryButton(
-                when {
-                    isNew -> "Open " + (targetTitle?.let { "“$it”" } ?: "a new chat")
-                    moving -> "Save and open the channel"
-                    else -> "Save"
-                },
+                if (isNew) "Make automation" else "Save",
                 onClick = {
                     tried = true
                     val ok = edit as? EditResult.Ok ?: return@PrimaryButton
                     val to = target
-                    if (isNew) {
-                        val real = when {
-                            to == null -> null
-                            to.id.startsWith(DRAFT) -> onNewChannel(made.first { it.first.id == to.id }.second)
-                            else -> to
+                    // A channel made in this sheet is only a draft until now.
+                    val real = if (to != null && to.id.startsWith(DRAFT)) {
+                        onNewChannel(made.first { it.first.id == to.id }.second).also { kept ->
+                            // Kept now: a second try after a failed save uses it instead of making another.
+                            made = made.map { if (it.first.id == to.id) kept to it.second else it }
+                            target = kept
                         }
-                        onCreate(real, name.trim(), message.trim(), ok.schedule ?: return@PrimaryButton)
-                    } else if (moving && to != null) {
-                        // A channel made in this sheet is only a draft until now.
-                        val real = if (to.id.startsWith(DRAFT)) onNewChannel(made.first { it.first.id == to.id }.second) else to
-                        onMove(real, name.trim(), message.trim(), ok.schedule)
-                    } else {
-                        onSave(ok.values, ok.schedule)
-                    }
+                    } else to
+                    val values = ok.values.put("channel", real?.id.orEmpty()).put("model", model.orEmpty())
+                    if (isNew) values.put("schedule", ok.schedule ?: return@PrimaryButton)
+                    onSave(values, ok.schedule)
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -206,7 +199,3 @@ fun AutomationEditSheet(
 
 /** The id prefix of a channel made in the sheet and not yet kept. */
 private const val DRAFT = "draft-"
-
-/** The name of the channel [target] (one of [channels] or a draft in [made]), or null for a chat of its own. */
-private fun shownTitle(target: Channel?, channels: List<Pair<Channel, ChannelLook>>, made: List<Pair<Channel, ChannelLook>>): String? =
-    target?.let { t -> (channels + made).firstOrNull { it.first.id == t.id }?.second?.title }

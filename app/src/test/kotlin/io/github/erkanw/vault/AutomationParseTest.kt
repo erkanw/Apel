@@ -1,7 +1,6 @@
 package io.github.erkanw.vault
 
 import io.github.erkanw.vault.chat.currentSchedule
-import io.github.erkanw.vault.chat.moveJobRequest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

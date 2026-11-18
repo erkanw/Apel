@@ -63,6 +63,8 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.browser)
+    // Automations: catching missed runs, waiting for the network, and running when an alarm can't start the service (PLAN §8).
+    implementation(libs.androidx.work.runtime)
 
     testImplementation(libs.junit)
     // The JVM unit tests need a real org.json; android.jar only has stubs.
