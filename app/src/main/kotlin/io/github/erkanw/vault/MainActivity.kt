@@ -43,7 +43,12 @@ class MainActivity : ComponentActivity() {
         applyNightMode(this, ThemeMode.fromId(BlobPrefs.themeId(this)))
         enableEdgeToEdge()
         Haptics.attach(this)
-        if (savedInstanceState == null) handle(intent)
+        // Once per intent: not again on rotation, but also when Android restores the screen for a notification tap after
+        // the app was closed (the saved state is there then, and the tap's intent is new).
+        if (!intent.getBooleanExtra(EXTRA_HANDLED, false)) {
+            handle(intent)
+            intent.putExtra(EXTRA_HANDLED, true)
+        }
         setContent {
             val mode by settings.themeMode.collectAsStateWithLifecycle()
             val dark = mode.isDark(isSystemInDarkTheme())
@@ -104,5 +109,6 @@ class MainActivity : ComponentActivity() {
         const val ACTION_ASK = "io.github.erkanw.vault.ASK"
         const val ACTION_OPENROUTER = "io.github.erkanw.vault.OPENROUTER"
         const val EXTRA_ASK = "ask"
+        private const val EXTRA_HANDLED = "io.github.erkanw.vault.HANDLED"
     }
 }

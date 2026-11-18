@@ -18,6 +18,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -400,6 +403,8 @@ fun VaultSheet(onDismiss: () -> Unit, title: String? = null, content: @Composabl
     val k = MaterialTheme.vault
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        // A tall sheet (large font sizes) stops under the status bar instead of running behind the clock.
+        modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars),
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = k.surface,
         contentColor = k.text,

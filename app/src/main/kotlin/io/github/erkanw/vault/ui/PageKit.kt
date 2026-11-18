@@ -2,6 +2,8 @@ package io.github.erkanw.vault.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -109,6 +111,7 @@ fun GroupSwitchRow(title: String, subtitle: String?, checked: Boolean, onChange:
             .fillMaxWidth()
             .heightIn(min = 56.dp)
             .pressable(onClick = { if (enabled) onChange(!checked) }, pressedScale = 1f, pressed = if (enabled) k.pressed else Color.Transparent, role = Role.Switch)
+            .semantics { toggleableState = androidx.compose.ui.state.ToggleableState(checked) }
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
