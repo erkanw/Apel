@@ -485,6 +485,11 @@ class LocalBackend(context: Context) : AgentBackend {
             keep("${tool.step(args)}\n→ Off")
             return "This tool is off: the user turned it off in Tools. Tell them if you needed it."
         }
+        // A call that can't run anyway is refused before you are asked about it.
+        tool.precheck(args, ctx)?.let { reason ->
+            keep("${tool.step(args)}\n→ ${reason.take(120)}")
+            return "Error: $reason"
+        }
         val special = tool.mustAsk(args, ctx)
         val ask = special ?: if (level == ToolLevel.Ask) tool.ask(args) else null
         if (ask != null) {

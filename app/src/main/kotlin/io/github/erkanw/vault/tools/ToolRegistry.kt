@@ -18,7 +18,8 @@ object ToolRegistry {
     val tools: List<Tool> = listOf(
         WebFetchTool, FileTools.List, FileTools.Read, FileTools.Write, FileTools.Edit, FileTools.Move, FileTools.Delete,
         FileTools.Search, MemoryTools.Read, MemoryTools.Write, SkillStore.ListTool, SkillStore.ReadTool, SkillStore.SaveTool,
-        AutomationTools.ListTool, AutomationTools.CreateTool, AutomationTools.UpdateTool, AutomationTools.DeleteTool, TimeTool, NotifyTool,
+        AutomationTools.ListTool, AutomationTools.CreateTool, AutomationTools.UpdateTool, AutomationTools.DeleteTool,
+        DbTools.ListTool, DbTools.SchemaTool, DbTools.QueryTool, DbTools.ExecuteTool, TimeTool, NotifyTool,
     )
 
     fun tool(name: String): Tool? = tools.firstOrNull { it.name == name }

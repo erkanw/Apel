@@ -61,6 +61,9 @@ interface Tool {
     /** Asked even when the tool is Allowed (overwriting a file the user made, say); null when nothing needs asking. */
     fun mustAsk(args: JSONObject, ctx: ToolContext): ApprovalAsk? = null
 
+    /** Why this call can't run at all, checked before anyone is asked (a database it may only read); null when it can. */
+    fun precheck(args: JSONObject, ctx: ToolContext): String? = null
+
     /** What the approval card says when the tool is set to Ask first. */
     fun ask(args: JSONObject): ApprovalAsk = ApprovalAsk(hint(args), step(args))
 

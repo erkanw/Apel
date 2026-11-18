@@ -95,7 +95,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /** The places Home leads to. */
-enum class Screen { Home, Chat, Skills, Automation, AutomationRuns, Settings, OpenRouter, Files, Models, Tools, Provider, Onboarding, Look, Agent }
+enum class Screen { Home, Chat, Skills, Automation, AutomationRuns, Databases, Settings, OpenRouter, Files, Models, Tools, Provider, Onboarding, Look, Agent }
 
 /** The next automation to run, for its tile on Home. */
 data class NextRun(val name: String, val atMs: Long)
@@ -473,6 +473,7 @@ private fun HomeDrawer(
                 item(key = "files") { ToolRow(VaultIcons.Folder, "Files") { onNavigate(Screen.Files) } }
                 item(key = "skills") { ToolRow(VaultIcons.Sparkles, "Skills") { onNavigate(Screen.Skills) } }
                 item(key = "auto") { ToolRow(VaultIcons.Clock, "Automations") { onNavigate(Screen.Automation) } }
+                item(key = "dbs") { ToolRow(VaultIcons.Database, "Databases") { onNavigate(Screen.Databases) } }
                 item(key = "tools") { ToolRow(VaultIcons.Wrench, "Tools") { onNavigate(Screen.Tools) } }
                 run {
                     // Making a channel is rare: a quiet + on the heading, not a row of its own in the list.
@@ -571,7 +572,7 @@ private fun ToolRow(icon: ImageVector, title: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun SearchPill(value: String, onValue: (String) -> Unit, modifier: Modifier = Modifier) {
+internal fun SearchPill(value: String, onValue: (String) -> Unit, modifier: Modifier = Modifier, placeholder: String = "Search chats") {
     val k = MaterialTheme.vault
     Row(
         modifier.fillMaxWidth().heightIn(min = 44.dp).clip(CircleShape).background(k.surfaceHigh).padding(start = 14.dp, end = 4.dp),
@@ -580,7 +581,7 @@ private fun SearchPill(value: String, onValue: (String) -> Unit, modifier: Modif
         Icon(VaultIcons.Search, null, tint = k.muted, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(10.dp))
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            if (value.isEmpty()) Text("Search chats", style = VaultType.Body, color = k.muted)
+            if (value.isEmpty()) Text(placeholder, style = VaultType.Body, color = k.muted)
             BasicTextField(value, onValue, singleLine = true, textStyle = VaultType.Body.copy(color = k.text), cursorBrush = SolidColor(k.text), modifier = Modifier.fillMaxWidth())
         }
         if (value.isNotEmpty()) BarButton(VaultIcons.Close, "Clear search", { onValue("") }, tint = k.muted, iconSize = 18.dp)

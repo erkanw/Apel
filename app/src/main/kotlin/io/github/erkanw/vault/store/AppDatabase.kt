@@ -17,8 +17,8 @@ import androidx.room.RoomDatabase
 import androidx.room.Transaction
 import androidx.room.Update
 
-// The chats on the phone (PLAN §5, "Room tables"), the usage log and the automations. Databases and approvals join in
-// later phases as new tables with migrations. Channels stay in SharedPreferences (ChannelLooks, AppSettings).
+// The chats on the phone (PLAN §5, "Room tables"), the usage log, the automations and the user databases' registry.
+// Approvals join later as new tables with migrations. Channels stay in SharedPreferences (ChannelLooks, AppSettings).
 
 @Entity(tableName = "sessions")
 data class SessionEntity(
@@ -288,20 +288,86 @@ interface AutomationDao {
     suspend fun trimRuns(automationId: String, keep: Int)
 }
 
+/** A user database in the registry (PLAN §5 `user_dbs`, §9); its file is `files/dbs/<name>.db`. */
+@Entity(tableName = "user_dbs")
+data class UserDbEntity(
+    @PrimaryKey val name: String,
+    val description: String,
+    /** "none", "read" or "write". */
+    @ColumnInfo(name = "agent_access") val agentAccess: String,
+    @ColumnInfo(name = "may_create_tables") val mayCreateTables: Boolean,
+    val created: Long,
+    /** The archived file's name while archived; null when in use. */
+    @ColumnInfo(name = "archived_file") val archivedFile: String? = null,
+)
+
+/** One change to a user database (PLAN §5 `db_audit`): when, which, by whom ("agent" or "you"), what, how many rows. */
+@Entity(tableName = "db_audit", indices = [Index("db")])
+data class DbAuditEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val time: Long,
+    val db: String,
+    val actor: String,
+    val action: String,
+    val statement: String,
+    val rows: Int,
+)
+
+/** The registry's calls are plain (not suspending): the user-database code is blocking and runs off the main thread. */
+@Dao
+interface UserDbDao {
+    @Query("SELECT * FROM user_dbs ORDER BY name")
+    fun all(): List<UserDbEntity>
+
+    @Query("SELECT * FROM user_dbs WHERE name = :name")
+    fun get(name: String): UserDbEntity?
+
+    @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)
+    fun put(db: UserDbEntity)
+
+    @Query("DELETE FROM user_dbs WHERE name = :name")
+    fun remove(name: String)
+
+    @Insert
+    fun audit(row: DbAuditEntity)
+
+    @Query("SELECT * FROM db_audit WHERE (:db IS NULL OR db = :db) ORDER BY time DESC, id DESC LIMIT :limit")
+    fun recentAudit(db: String?, limit: Int): List<DbAuditEntity>
+
+    @Query("DELETE FROM db_audit WHERE id NOT IN (SELECT id FROM db_audit ORDER BY id DESC LIMIT 2000)")
+    fun trimAudit()
+}
+
 @Database(
     entities = [SessionEntity::class, MessageEntity::class, AttachmentEntity::class, StepEntity::class, UsageEntity::class,
-        AutomationEntity::class, AutomationRunEntity::class,
+        AutomationEntity::class, AutomationRunEntity::class, UserDbEntity::class, DbAuditEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun chats(): ChatDao
     abstract fun usage(): UsageDao
     abstract fun automations(): AutomationDao
+    abstract fun userDbs(): UserDbDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
+
+        /** Phase 6: the user databases' registry and activity log. */
+        val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `user_dbs` (`name` TEXT NOT NULL, `description` TEXT NOT NULL, `agent_access` TEXT NOT NULL, " +
+                        "`may_create_tables` INTEGER NOT NULL, `created` INTEGER NOT NULL, `archived_file` TEXT, PRIMARY KEY(`name`))",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `db_audit` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `time` INTEGER NOT NULL, `db` TEXT NOT NULL, " +
+                        "`actor` TEXT NOT NULL, `action` TEXT NOT NULL, `statement` TEXT NOT NULL, `rows` INTEGER NOT NULL)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_db_audit_db` ON `db_audit` (`db`)")
+            }
+        }
 
         /** Phase 5: automations and their run log. */
         val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
@@ -341,7 +407,7 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
-            instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "app.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build().also { instance = it }
+            instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "app.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build().also { instance = it }
         }
     }
 }

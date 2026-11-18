@@ -19,6 +19,7 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -40,6 +41,7 @@ android {
     sourceSets["main"].java.srcDir("src/main/kotlin")
     sourceSets["androidTest"].assets.srcDir("$projectDir/schemas")
     sourceSets["test"].java.srcDir("src/test/kotlin")
+    sourceSets["androidTest"].java.srcDir("src/androidTest/kotlin")
 }
 
 dependencies {
@@ -69,4 +71,7 @@ dependencies {
     testImplementation(libs.junit)
     // The JVM unit tests need a real org.json; android.jar only has stubs.
     testImplementation(libs.org.json)
+    // The user-database rules on the phone's real SQLite (PLAN §9), run with am instrument.
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
 }

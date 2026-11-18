@@ -42,6 +42,9 @@ object VaultIcons {
     /** Automation. */
     val Clock by lazy { icon("Clock") { circle(12f, 12f, 10f); path("M12 6v6l4 2") } }
 
+    /** Databases (Lucide database). */
+    val Database by lazy { icon("Database") { path("M3 5a9 3 0 1 0 18 0a9 3 0 1 0 -18 0"); path("M3 5v14a9 3 0 0 0 18 0V5"); path("M3 12a9 3 0 0 0 18 0") } }
+
     /** Settings. */
     val Sliders by lazy {
         icon("Sliders") {

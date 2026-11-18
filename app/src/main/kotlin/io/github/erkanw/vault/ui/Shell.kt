@@ -272,6 +272,7 @@ fun VaultApp(
                     Screen.OpenRouter -> OpenRouterScreen(settings, onBack = { screenName = openedFrom })
                     Screen.Files -> FilesScreen(pages, onBack = back)
                     Screen.Tools -> ToolsScreen(pages, onBack = back)
+                    Screen.Databases -> DatabasesScreen(androidx.lifecycle.viewmodel.compose.viewModel<io.github.erkanw.vault.DatabasesViewModel>(), onBack = back)
                     Screen.Models -> ModelsScreen(settings, onBack = { screenName = openedFrom }, onSettings = { screenName = Screen.Provider.name })
                     Screen.Provider -> ProviderScreen(provider, onBack = { screenName = providerFrom }, onModels = { go(Screen.Models) }, onUsage = { go(Screen.OpenRouter) })
                     Screen.Look -> LookScreen(onBack = { screenName = openedFrom })
