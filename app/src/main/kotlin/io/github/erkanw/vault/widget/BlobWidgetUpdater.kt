@@ -36,7 +36,7 @@ object BlobWidgetUpdater {
     private const val TAG = "BlobWidget"
     private const val WIDE_MIN_DP = 200
 
-    /** Three rows of the home screen (in portrait a 4x2 is about 210 dp tall, a 4x3 about 320): room for the list of sessions. */
+    /** Three rows of the home screen (in portrait a 4x2 is about 210 dp tall, a 4x3 about 320): room for the latest chats. */
     private const val TALL_MIN_DP = 250
     // The app's tones (DESIGN.md): a state shows as a coloured word or dot, everything else stays grey.
     private const val MUTED = 0xFF8E8E93.toInt()
@@ -91,6 +91,37 @@ object BlobWidgetUpdater {
 
     internal enum class Size { Small, Wide, Tall }
 
+    /** A chat on the tall widget: its id (tapping opens it), "Title · 2 h", and its dot (a drawable). */
+    internal class ChatRow(val id: String, val text: String, val dot: Int)
+
+    /**
+     * The three chats used last, newest first. The newest takes the agent's state dot (it is the one being answered
+     * while a turn runs); the others are idle.
+     */
+    private fun latestChats(context: Context, shown: BlobState, now: Long): List<ChatRow> = try {
+        val rows = kotlinx.coroutines.runBlocking { io.github.erkanw.vault.store.AppDatabase.get(context).chats().sessions() }
+        rows.filter { !it.session.archived }.take(3).mapIndexed { i, r ->
+            val dot = if (i == 0 && toneOf(shown) != MUTED) dotOf(shown) else R.drawable.widget_dot_idle
+            val title = r.session.title.ifBlank { "New chat" }.let { if (it.length > 24) it.take(23).trimEnd() + "…" else it }
+            ChatRow(r.session.id, "$title · ${ago(r.session.updated, now)}", dot)
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "couldn't read the chats", e)
+        emptyList()
+    }
+
+    /** "now", "5 min", "3 h", "yesterday", "4 d". */
+    internal fun ago(at: Long, now: Long): String {
+        val minutes = ((now - at) / 60_000L).coerceAtLeast(0L)
+        return when {
+            minutes < 1 -> "now"
+            minutes < 60 -> "$minutes min"
+            minutes < 24 * 60 -> "${minutes / 60} h"
+            minutes < 48 * 60 -> "yesterday"
+            else -> "${minutes / (24 * 60)} d"
+        }
+    }
+
     /** Everything the three layouts can show, worked out once per refresh. */
     internal class Content(
         val label: String,
@@ -101,8 +132,8 @@ object BlobWidgetUpdater {
         val time: String,
         /** The muted line under the label of the small widget. */
         val meta: String,
-        /** The tall widget's rows: each row's text and its state dot (a drawable, or 0 for none). Empty for now (Phase 7). */
-        val sessions: List<Pair<String, Int>>,
+        /** The tall widget's rows: the latest chats, each with its state dot. */
+        val sessions: List<ChatRow>,
         /** A tool request waiting for your OK: its id (blank: none), and whether it is a question. */
         val request: String,
         val asking: Boolean,
@@ -118,7 +149,7 @@ object BlobWidgetUpdater {
         val meta = time
             .ifBlank { java.text.SimpleDateFormat("EEE d MMM", java.util.Locale.getDefault()).format(java.util.Date(now)) }
         val sourceColor = toneOf(shown)
-        return Content(label, snippet, source, sourceColor, time, meta, emptyList(), "", false)
+        return Content(label, snippet, source, sourceColor, time, meta, latestChats(context, shown, now), "", false)
     }
 
     internal fun build(
@@ -154,9 +185,15 @@ object BlobWidgetUpdater {
                 val session = content.sessions.getOrNull(i)
                 views.setViewVisibility(row, if (session == null) View.GONE else View.VISIBLE)
                 if (session != null) {
-                    views.setTextViewText(row, session.first)
+                    views.setTextViewText(row, session.text)
                     // A drawn dot, not a "●" in the text: the launcher's font draws that one small and low.
-                    views.setTextViewCompoundDrawablesRelative(row, session.second, 0, 0, 0)
+                    views.setTextViewCompoundDrawablesRelative(row, session.dot, 0, 0, 0)
+                    val openChat = Intent(context, MainActivity::class.java)
+                        .setAction(io.github.erkanw.vault.chat.ChatAlerts.ACTION_OPEN)
+                        .putExtra(io.github.erkanw.vault.chat.ChatAlerts.EXTRA_CHAT, session.id)
+                    views.setOnClickPendingIntent(
+                        row, PendingIntent.getActivity(context, 100 + i, openChat, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE),
+                    )
                 }
             }
         }

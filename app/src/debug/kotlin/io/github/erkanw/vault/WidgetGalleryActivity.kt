@@ -60,14 +60,18 @@ class WidgetGalleryActivity : Activity() {
             slot.addView(views.apply(this, slot))
             column.addView(slot, LinearLayout.LayoutParams((widthDp * dp).toInt(), (heightDp * dp).toInt()).apply { bottomMargin = (20 * dp).toInt() })
         }
-        fun content(state: BlobState, label: String, snippet: String, source: String, request: String = "", asking: Boolean = false, sessions: List<Pair<String, Int>> = emptyList()) =
+        fun content(state: BlobState, label: String, snippet: String, source: String, request: String = "", asking: Boolean = false, sessions: List<BlobWidgetUpdater.ChatRow> = emptyList()) =
             Content(label, snippet, source, BlobWidgetUpdater.toneOf(state), "21:42", "$source · 21:42", sessions, request, asking)
 
         val agent = io.github.erkanw.vault.store.AgentProfile.name(this)
         if (set == "a") {
             add(Size.Small, BlobState.Idle, Content("Ask $agent", "", agent, BlobWidgetUpdater.toneOf(BlobState.Idle), "", "Wed 11 Nov", emptyList(), "", false), 168, 176)
             add(Size.Wide, BlobState.Finished, content(BlobState.Finished, "Replied", "The 07:42 is the quickest: 38 minutes, direct. The next one leaves at 08:12.", agent), 344, 176)
-            add(Size.Tall, BlobState.Working, content(BlobState.Working, "Working", "Reading three pages about train times to the airport.", agent), 344, 264)
+            add(Size.Tall, BlobState.Working, content(BlobState.Working, "Working", "Reading three pages about train times to the airport.", agent, sessions = listOf(
+                BlobWidgetUpdater.ChatRow("a", "Trains to the airport · now", BlobWidgetUpdater.dotOf(BlobState.Working)),
+                BlobWidgetUpdater.ChatRow("b", "Daily brief · 3 h", io.github.erkanw.vault.R.drawable.widget_dot_idle),
+                BlobWidgetUpdater.ChatRow("c", "Notes · yesterday", io.github.erkanw.vault.R.drawable.widget_dot_idle),
+            )), 344, 264)
         } else {
             add(Size.Wide, BlobState.Approval, content(BlobState.Approval, "Wants your OK", "Add 3 rows to the expenses table", agent, request = "r1"), 344, 176)
             add(Size.Small, BlobState.Sleeping, Content("Sleeping", "", agent, BlobWidgetUpdater.toneOf(BlobState.Sleeping), "", "Wed 11 Nov", emptyList(), "", false), 168, 176)

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The large OpenRouter widget (about 4 x 3): this week's spend, requests and tokens, each with the models that account for
-     most of it, like OpenRouter's dashboard. Only views a widget may inflate (no plain View). -->
+<!-- The large Usage widget (about 4 x 3): this week's spend, requests and tokens, each with the models that account for
+     most of it, like OpenRouter’s dashboard. Only views a widget may inflate (no plain View). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root"
     android:layout_width="match_parent"
@@ -20,7 +20,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:maxLines="1"
-            android:text="OpenRouter"
+            android:text="Usage"
             android:textColor="@color/widget_muted"
             android:textSize="12sp"
             android:fontVariationSettings="'wght' 600, 'opsz' 14" />

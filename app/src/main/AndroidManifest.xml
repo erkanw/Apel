@@ -81,17 +81,17 @@
             android:name=".agent.ApprovalAlerts$DenyReceiver"
             android:exported="false" />
 
-        <!-- The OpenRouter credits and spending widget (the Usage widget from Phase 7). -->
+        <!-- The Usage widget: what was spent and what is left. -->
         <receiver
-            android:name=".widget.OpenRouterWidgetProvider"
+            android:name=".widget.UsageWidgetProvider"
             android:exported="true"
-            android:label="OpenRouter">
+            android:label="Usage">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/openrouter_widget_info" />
+                android:resource="@xml/usage_widget_info" />
         </receiver>
 
         <!-- Sharing a workspace file with another app (Files, Share). -->

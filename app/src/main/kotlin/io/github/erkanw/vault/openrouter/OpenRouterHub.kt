@@ -3,7 +3,7 @@ package io.github.erkanw.vault.openrouter
 import android.content.Context
 import androidx.core.content.edit
 import io.github.erkanw.vault.data.SecretStore
-import io.github.erkanw.vault.widget.OpenRouterWidget
+import io.github.erkanw.vault.widget.UsageWidget
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -89,7 +89,7 @@ object OpenRouterHub {
             is OpenRouterClient.Result.Ok -> {
                 store.saveSnapshot(result.snapshot)
                 _state.value = OrState(hasKey = true, snapshot = result.snapshot)
-                OpenRouterWidget.updateAll(app)
+                UsageWidget.updateAll(app)
                 true
             }
             is OpenRouterClient.Result.Failed -> {
@@ -111,6 +111,6 @@ object OpenRouterHub {
         ensureLoaded(app)
         OpenRouterStore(app).removeKey()
         _state.value = OrState()
-        OpenRouterWidget.updateAll(app)
+        UsageWidget.updateAll(app)
     }
 }

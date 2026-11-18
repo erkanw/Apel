@@ -273,10 +273,13 @@ data class OrWeek(
     val byTokens: List<OrRank>,
 )
 
-/** The week from [rows] as of [today] (UTC), or null when there is nothing in it. */
-fun weekOf(rows: List<OrActivityRow>, today: LocalDate = LocalDate.now(ZoneOffset.UTC), top: Int = 3): OrWeek? {
+/**
+ * The week from [rows] as of [today] (UTC), or null when there is nothing in it. [includeToday]: the rows come from the
+ * app's own log, which has today too (OpenRouter's activity only has the days that are over).
+ */
+fun weekOf(rows: List<OrActivityRow>, today: LocalDate = LocalDate.now(ZoneOffset.UTC), top: Int = 3, includeToday: Boolean = false): OrWeek? {
     fun dayOf(r: OrActivityRow) = runCatching { LocalDate.parse(r.date) }.getOrNull()
-    val over = rows.filter { r -> dayOf(r)?.let { it.isBefore(today) } == true }
+    val over = rows.filter { r -> dayOf(r)?.let { if (includeToday) !it.isAfter(today) else it.isBefore(today) } == true }
     val monday = today.minusDays((today.dayOfWeek.value - 1).toLong())
     var label = "This week"
     var inside = over.filter { r -> dayOf(r)?.let { !it.isBefore(monday) } == true }

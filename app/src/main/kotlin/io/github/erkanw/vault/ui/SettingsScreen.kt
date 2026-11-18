@@ -81,7 +81,7 @@ import androidx.compose.ui.res.stringResource
 fun SettingsScreen(
     vm: SettingsViewModel,
     onBack: () -> Unit,
-    onOpenRouter: () -> Unit = {},
+    onUsage: () -> Unit = {},
     onModels: () -> Unit = {},
     onLook: () -> Unit = {},
     onProvider: () -> Unit = {},
@@ -99,7 +99,7 @@ fun SettingsScreen(
     val sleepEnabled by vm.sleepEnabled.collectAsStateWithLifecycle()
     val hapticsEnabled by vm.hapticsEnabled.collectAsStateWithLifecycle()
     val widgetNote by vm.widgetNote.collectAsStateWithLifecycle()
-    val openRouter by vm.openRouter.collectAsStateWithLifecycle()
+    val budget by vm.budget.collectAsStateWithLifecycle()
     val newMessageAlertsOn by vm.newMessageAlertsOn.collectAsStateWithLifecycle()
     val themeMode by vm.themeMode.collectAsStateWithLifecycle()
     val version = remember { runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty() }
@@ -159,7 +159,7 @@ fun SettingsScreen(
                 )
             }
 
-            Section("Models and credits") {
+            Section("Models and usage") {
                 ActionRow(
                     title = "Choose and add models",
                     subtitle = "Which models the chat offers and in what order: add one from OpenRouter, set the main model and the fallbacks, change the limits.",
@@ -168,12 +168,12 @@ fun SettingsScreen(
                 )
                 RowDivider()
                 ActionRow(
-                    title = "OpenRouter credits",
-                    subtitle = openRouter.snapshot?.let { s ->
-                        (s.balance?.let { "${io.github.erkanw.vault.openrouter.usd(it)} left · " } ?: "") +
-                            "${io.github.erkanw.vault.openrouter.usd(s.today)} today"
-                    } ?: if (openRouter.hasKey) "What is left on your account and what each model cost." else "Needs your OpenRouter key.",
-                    onClick = onOpenRouter,
+                    title = "Usage and budget",
+                    subtitle = budget?.let { b ->
+                        val spent = io.github.erkanw.vault.openrouter.usd(b.spent)
+                        if (b.settings.on) "$spent of ${io.github.erkanw.vault.openrouter.usd(b.settings.limit)} this month" + (if (b.over) ", used up" else "") else "$spent this month · no budget set"
+                    } ?: "What each answer cost, and a monthly budget.",
+                    onClick = onUsage,
                     chevron = true,
                 )
             }

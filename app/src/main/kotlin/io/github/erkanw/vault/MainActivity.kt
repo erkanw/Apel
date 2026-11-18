@@ -34,7 +34,7 @@ class MainActivity : ComponentActivity() {
 
     /** Bumped each time the widget opens the app, so the chat puts the keyboard up. */
     private var focusTick by mutableIntStateOf(0)
-    private var openRouterTick by mutableIntStateOf(0)
+    private var usageTick by mutableIntStateOf(0)
     private var openChatTick by mutableIntStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
                 val bars = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT) { dark }
                 enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
             }
-            VaultTheme(mode) { VaultApp(chat, pages, settings, provider, focusTick, openRouterTick, openChatTick) }
+            VaultTheme(mode) { VaultApp(chat, pages, settings, provider, focusTick, usageTick, openChatTick) }
         }
     }
 
@@ -95,8 +95,8 @@ class MainActivity : ComponentActivity() {
         // Back from the OpenRouter sign-in: the "Back to the app" link only brings the app to the front (the code
         // already came in through the loopback address); onResume finishes the sign-in.
         when (intent?.action) {
-            // The usage widget was tapped.
-            ACTION_OPENROUTER -> openRouterTick++
+            // The Usage widget or the budget notification was tapped.
+            ACTION_USAGE -> usageTick++
             // A "Replies" notification was tapped: open that chat.
             ChatAlerts.ACTION_OPEN -> {
                 chat.openChatById(intent.getStringExtra(ChatAlerts.EXTRA_CHAT))
@@ -107,7 +107,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val ACTION_ASK = "io.github.erkanw.vault.ASK"
-        const val ACTION_OPENROUTER = "io.github.erkanw.vault.OPENROUTER"
+        const val ACTION_USAGE = "io.github.erkanw.vault.USAGE"
         const val EXTRA_ASK = "ask"
         private const val EXTRA_HANDLED = "io.github.erkanw.vault.HANDLED"
     }

@@ -182,6 +182,8 @@ data class UsageEntity(
     @ColumnInfo(name = "tokens_out") val tokensOut: Long,
     val cost: Double?,
     val ok: Boolean,
+    /** Calls to the model this answer took (one per tool round); OpenRouter counts each, free models' daily limit too. */
+    @ColumnInfo(defaultValue = "1") val requests: Int = 1,
 )
 
 @Dao
@@ -342,7 +344,7 @@ interface UserDbDao {
     entities = [SessionEntity::class, MessageEntity::class, AttachmentEntity::class, StepEntity::class, UsageEntity::class,
         AutomationEntity::class, AutomationRunEntity::class, UserDbEntity::class, DbAuditEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -353,6 +355,13 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
+
+        /** Phase 7: how many calls each answer took. */
+        val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `usage` ADD COLUMN `requests` INTEGER NOT NULL DEFAULT 1")
+            }
+        }
 
         /** Phase 6: the user databases' registry and activity log. */
         val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
@@ -407,7 +416,7 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
-            instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "app.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build().also { instance = it }
+            instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "app.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build().also { instance = it }
         }
     }
 }

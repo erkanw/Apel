@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The wide OpenRouter widget: the balance on the left; today, the week, the month and the top model on the right. -->
+<!-- The wide Usage widget: the balance on the left; today, the week, the month and the top model on the right. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root"
     android:layout_width="match_parent"
@@ -20,7 +20,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:maxLines="1"
-            android:text="OpenRouter"
+            android:text="Usage"
             android:textColor="@color/widget_muted"
             android:textSize="12sp"
             android:fontVariationSettings="'wght' 600, 'opsz' 14" />

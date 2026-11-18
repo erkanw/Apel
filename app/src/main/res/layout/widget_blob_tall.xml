@@ -69,29 +69,36 @@
     <TextView
         android:id="@+id/s1"
         style="@style/WidgetText"
+        android:minHeight="44dp"
+        android:maxLines="1"
+        android:ellipsize="end"
         android:drawablePadding="8dp"
         android:gravity="center_vertical"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp" />
+        android:layout_marginTop="6dp" />
 
     <TextView
         android:id="@+id/s2"
         style="@style/WidgetText"
+        android:minHeight="44dp"
+        android:maxLines="1"
+        android:ellipsize="end"
         android:drawablePadding="8dp"
         android:gravity="center_vertical"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp" />
+        android:layout_height="wrap_content" />
 
     <TextView
         android:id="@+id/s3"
         style="@style/WidgetText"
+        android:minHeight="44dp"
+        android:maxLines="1"
+        android:ellipsize="end"
         android:drawablePadding="8dp"
         android:gravity="center_vertical"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp" />
+        android:layout_height="wrap_content" />
 
     <!-- A spacer that pushes the bar to the bottom. (A widget may only inflate the views Android lists for it: a plain View is not one.) -->
     <FrameLayout

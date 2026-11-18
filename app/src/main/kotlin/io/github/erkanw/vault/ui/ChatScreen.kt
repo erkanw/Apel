@@ -580,6 +580,20 @@ fun ChatScreen(vm: ChatViewModel, focusTick: Int, onBack: () -> Unit, onSettings
         )
     }
 
+    val budgetAsk by vm.budgetAsk.collectAsStateWithLifecycle()
+    if (budgetAsk != null) {
+        val status = io.github.erkanw.vault.usage.Budget.status.value
+        VaultDialog(
+            title = "This month’s budget is used up",
+            text = status?.let { "${io.github.erkanw.vault.openrouter.usd(it.spent)} of ${io.github.erkanw.vault.openrouter.usd(it.settings.limit)} spent. Send this message anyway?" }
+                ?: "Send this message anyway?",
+            confirm = "Send anyway",
+            onConfirm = { vm.answerBudget(true) },
+            onDismiss = { vm.answerBudget(false)?.let { if (draft.isBlank()) draft = it } },
+            dismiss = "Not now",
+        )
+    }
+
     editing?.let { message ->
         EditPromptDialog(
             initial = message.text,

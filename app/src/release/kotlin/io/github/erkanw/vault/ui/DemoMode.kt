@@ -12,4 +12,6 @@ object DemoMode {
     fun channelRunning(id: String): Boolean = false
     fun channelUnread(id: String): Boolean = false
     fun openRouter(now: Long): io.github.erkanw.vault.openrouter.OrSnapshot? = null
+    fun usage(now: Long): List<io.github.erkanw.vault.usage.UsageCall>? = null
+    val automationNames: Map<String, String> = emptyMap()
 }

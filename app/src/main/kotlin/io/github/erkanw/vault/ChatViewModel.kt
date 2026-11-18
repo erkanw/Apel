@@ -190,6 +190,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     init {
         ChannelLooks.ensureLoaded(app)
         ModelPrefsStore.ensureLoaded(app)
+        // The budget's state for sending (read once here; every logged answer reads it again).
+        viewModelScope.launch(Dispatchers.IO) { io.github.erkanw.vault.usage.Budget.refresh(app) }
         onVisible()
         // An automation started or finished a turn somewhere: the drawer, the channels and the open chat catch up.
         viewModelScope.launch {
@@ -766,11 +768,37 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         publish(BlobState.Idle, snippet = "")
     }
 
+    /** The model the chat on screen sends to: its own preset, or the main one. */
+    private fun currentModelId(): String? {
+        val choices = models.value
+        val chat = _currentChatId.value
+        val name = _sessions.value.firstOrNull { it.chatId == chat }?.modelPreset ?: choices.active
+        return choices.presets.firstOrNull { it.name == name }?.model
+    }
+
+    /** A message waiting for "Send anyway": this month's budget is used up and the budget asks first (PLAN §6.11). */
+    private val _budgetAsk = MutableStateFlow<Pair<String, Boolean>?>(null)
+    val budgetAsk: StateFlow<Pair<String, Boolean>?> = _budgetAsk.asStateFlow()
+
+    /** The answer to the budget's question: sends the waiting message, or gives its text back for the box. */
+    fun answerBudget(send: Boolean): String? {
+        val (text, withFiles) = _budgetAsk.value ?: return null
+        _budgetAsk.value = null
+        if (send) send(text, withFiles, overBudgetOk = true)
+        return if (send) null else text
+    }
+
     /**
      * Sends [text], with the files chosen for it ([withFiles]; a slash command never carries any). Does nothing while a
-     * file is still being prepared.
+     * file is still being prepared. Over the month's budget, when it asks first, the message waits for [answerBudget].
      */
-    fun send(text: String, withFiles: Boolean = true) {
+    fun send(text: String, withFiles: Boolean = true, overBudgetOk: Boolean = false) {
+        if (!overBudgetOk && !text.trim().startsWith("/") && text.isNotBlank() && !_busy.value && io.github.erkanw.vault.usage.Budget.asksBeforeSending() &&
+            currentModelId()?.let { io.github.erkanw.vault.usage.UsageStats.isFree(it) } != true
+        ) {
+            _budgetAsk.value = text to withFiles
+            return
+        }
         val prompt = text.trim()
         val files = if (withFiles && !prompt.startsWith("/")) _pending.value else emptyList()
         if ((prompt.isEmpty() && files.isEmpty()) || _busy.value || files.any { !it.ready }) return

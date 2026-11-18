@@ -4,7 +4,7 @@
     <!-- The agent's and the mascot's name until the user renames it (Settings → Agent). Never shown as a literal elsewhere. -->
     <string name="agent_default_name">Apel</string>
     <string name="widget_description">Apel on your home screen. Tap to chat.</string>
-    <string name="or_widget_description">What is left on OpenRouter and what you spent today. Tap to open the details.</string>
+    <string name="usage_widget_description">What you spent today and what is left. Tap to open Usage.</string>
 
     <!-- The widget's bar: the agent's name can't be read in a layout, so the bar says it plainly. -->
     <string name="widget_message">Message…</string>
@@ -26,4 +26,6 @@
     <string name="channel_approvals_description">When %1$s needs your OK to use a tool.</string>
     <string name="channel_automations">Automations</string>
     <string name="channel_automations_description">What %1$s posts when a scheduled job runs.</string>
+    <string name="channel_budget">Budget</string>
+    <string name="channel_budget_description">When 80% of the month’s budget is spent, and when it is used up.</string>
 </resources>

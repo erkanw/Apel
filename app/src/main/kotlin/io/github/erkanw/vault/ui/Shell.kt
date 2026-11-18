@@ -46,7 +46,7 @@ fun VaultApp(
     settings: SettingsViewModel,
     provider: ProviderViewModel,
     focusTick: Int,
-    openRouterTick: Int = 0,
+    usageTick: Int = 0,
     openChatTick: Int = 0,
 ) {
     val k = MaterialTheme.vault
@@ -103,14 +103,14 @@ fun VaultApp(
         if (openChatTick > 0) screenName = Screen.Chat.name
     }
     // The usage widget was tapped: show its page.
-    LaunchedEffect(openRouterTick) {
-        if (openRouterTick > 0) screenName = Screen.OpenRouter.name
+    LaunchedEffect(usageTick) {
+        if (usageTick > 0) screenName = Screen.Usage.name
     }
     // Back goes one step up: Files up a folder first, the usage page to where it was opened from, everything else Home.
     BackHandler(enabled = screen != Screen.Home && screen != Screen.Onboarding) {
         if (screen == Screen.Files && pages.folderUp()) return@BackHandler
         screenName = when (screen) {
-            Screen.OpenRouter, Screen.Models, Screen.Look -> openedFrom
+            Screen.Usage, Screen.Models, Screen.Look -> openedFrom
             Screen.Agent -> Screen.Settings.name
             Screen.AutomationRuns -> Screen.Automation.name
             Screen.Provider -> providerFrom
@@ -119,7 +119,7 @@ fun VaultApp(
     }
 
     fun go(target: Screen) {
-        if (target == Screen.Models || target == Screen.OpenRouter || target == Screen.Look) openedFrom = screen.name
+        if (target == Screen.Models || target == Screen.Usage || target == Screen.Look) openedFrom = screen.name
         screenName = target.name
     }
 
@@ -255,7 +255,7 @@ fun VaultApp(
                     Screen.Settings -> SettingsScreen(
                         settings,
                         onBack = back,
-                        onOpenRouter = { go(Screen.OpenRouter) },
+                        onUsage = { go(Screen.Usage) },
                         onModels = { go(Screen.Models) },
                         onLook = { screenName = Screen.Agent.name },
                         onProvider = { providerFrom = Screen.Settings.name; screenName = Screen.Provider.name },
@@ -269,12 +269,12 @@ fun VaultApp(
                             screenName = Screen.Onboarding.name
                         },
                     )
-                    Screen.OpenRouter -> OpenRouterScreen(settings, onBack = { screenName = openedFrom })
+                    Screen.Usage -> UsageScreen(androidx.lifecycle.viewmodel.compose.viewModel<io.github.erkanw.vault.UsageViewModel>(), onBack = { screenName = openedFrom })
                     Screen.Files -> FilesScreen(pages, onBack = back)
                     Screen.Tools -> ToolsScreen(pages, onBack = back)
                     Screen.Databases -> DatabasesScreen(androidx.lifecycle.viewmodel.compose.viewModel<io.github.erkanw.vault.DatabasesViewModel>(), onBack = back)
                     Screen.Models -> ModelsScreen(settings, onBack = { screenName = openedFrom }, onSettings = { screenName = Screen.Provider.name })
-                    Screen.Provider -> ProviderScreen(provider, onBack = { screenName = providerFrom }, onModels = { go(Screen.Models) }, onUsage = { go(Screen.OpenRouter) })
+                    Screen.Provider -> ProviderScreen(provider, onBack = { screenName = providerFrom }, onModels = { go(Screen.Models) }, onUsage = { go(Screen.Usage) })
                     Screen.Look -> LookScreen(onBack = { screenName = openedFrom })
                     Screen.Agent -> AgentScreen(onBack = { screenName = Screen.Settings.name }, onLook = { go(Screen.Look) })
                     Screen.Onboarding -> OnboardingScreen(provider, onDone = {
@@ -290,7 +290,7 @@ fun VaultApp(
 /** How deep a screen is in the stack: the home screen at the bottom, the usage page (reached from Settings) on top. */
 private fun depthOf(screen: Screen): Int = when (screen) {
     Screen.Home -> 0
-    Screen.OpenRouter, Screen.Models, Screen.Provider, Screen.Agent, Screen.AutomationRuns -> 2
+    Screen.Usage, Screen.Models, Screen.Provider, Screen.Agent, Screen.AutomationRuns -> 2
     Screen.Look -> 3
     else -> 1
 }

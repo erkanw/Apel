@@ -61,7 +61,11 @@ object OpenRouterClient {
             me.code !in 200..299 -> return Result.Failed("OpenRouter answered HTTP ${me.code}.")
         }
         val info = parseKey(me.body) ?: return Result.Failed("OpenRouter answered, but not in a way this app understands.")
-        if (!info.management) return Result.Ok(OrSnapshot(now, info, null, emptyList(), emptyList()))
+        // A regular key (the one sign-in makes) may or may not read the account's credits: asked, and kept if it can.
+        if (!info.management) {
+            val credits = optional("credits", key)?.let(::parseCredits)
+            return Result.Ok(OrSnapshot(now, info, credits, emptyList(), emptyList()))
+        }
 
         val credits = optional("credits", key)?.let(::parseCredits) ?: previous?.credits
         val keys = allKeys(key) ?: previous?.keys.orEmpty()

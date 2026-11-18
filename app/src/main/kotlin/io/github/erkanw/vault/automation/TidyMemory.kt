@@ -66,12 +66,11 @@ object TidyMemory {
             }
         }
         usage?.let { u ->
-            runCatching {
-                AppDatabase.get(app).usage().insert(
-                    UsageEntity(time = System.currentTimeMillis(), model = preset.model, source = "automation", sessionId = null, automationId = a.id,
-                        tokensIn = u.promptTokens, tokensOut = u.completionTokens, cost = u.cost, ok = true),
-                )
-            }
+            io.github.erkanw.vault.usage.UsageLog.record(
+                app,
+                UsageEntity(time = System.currentTimeMillis(), model = preset.model, source = "automation", sessionId = null, automationId = a.id,
+                    tokensIn = u.promptTokens, tokensOut = u.completionTokens, cost = u.cost, ok = true),
+            )
         }
         val after = cleanResult(ThinkFilter.visible(text))
         return when (val verdict = judge(before, after)) {

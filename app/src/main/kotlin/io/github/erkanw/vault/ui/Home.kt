@@ -95,7 +95,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /** The places Home leads to. */
-enum class Screen { Home, Chat, Skills, Automation, AutomationRuns, Databases, Settings, OpenRouter, Files, Models, Tools, Provider, Onboarding, Look, Agent }
+enum class Screen { Home, Chat, Skills, Automation, AutomationRuns, Databases, Settings, Usage, Files, Models, Tools, Provider, Onboarding, Look, Agent }
 
 /** The next automation to run, for its tile on Home. */
 data class NextRun(val name: String, val atMs: Long)
@@ -655,7 +655,7 @@ private fun MoreSheet(onDismiss: () -> Unit, onOpen: (Screen) -> Unit) {
         Column(Modifier.padding(horizontal = 12.dp)) {
             val k = MaterialTheme.vault
             VaultRow("Models", { onOpen(Screen.Models) }, subtitle = "What ${LocalAgentName.current} can run", leading = { Icon(VaultIcons.Cube, null, tint = k.text, modifier = Modifier.size(20.dp)) })
-            VaultRow("OpenRouter", { onOpen(Screen.OpenRouter) }, subtitle = "Credits and usage", leading = { Icon(VaultIcons.Coin, null, tint = k.text, modifier = Modifier.size(20.dp)) })
+            VaultRow("Usage", { onOpen(Screen.Usage) }, subtitle = "What each answer cost", leading = { Icon(VaultIcons.Coin, null, tint = k.text, modifier = Modifier.size(20.dp)) })
         }
     }
 }

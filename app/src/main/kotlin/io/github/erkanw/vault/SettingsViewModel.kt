@@ -13,8 +13,6 @@ import io.github.erkanw.vault.chat.SeenStore
 import io.github.erkanw.vault.chat.movedModelOrder
 import io.github.erkanw.vault.chat.prettyModelName
 import io.github.erkanw.vault.data.BlobPrefs
-import io.github.erkanw.vault.openrouter.OpenRouterHub
-import io.github.erkanw.vault.openrouter.OrState
 import io.github.erkanw.vault.ui.Haptics
 import io.github.erkanw.vault.ui.ThemeMode
 import io.github.erkanw.vault.ui.applyNightMode
@@ -108,46 +106,14 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ---- usage: OpenRouter credits and spending --------------------------------------------------------------
+    // ---- usage -------------------------------------------------------------------------------------------------
 
-    /** What the usage page and widget show: whether there is a key, the last numbers, and what went wrong. */
-    val openRouter: StateFlow<OrState> = OpenRouterHub.state
+    /** This month against the budget, for the Usage row. */
+    val budget: StateFlow<io.github.erkanw.vault.usage.Budget.Status?> = io.github.erkanw.vault.usage.Budget.status
 
     init {
-        // What the usage page last knew, so it shows at once (no network, no Keystore).
-        OpenRouterHub.ensureLoaded(app)
         ModelPrefsStore.ensureLoaded(app)
-    }
-
-    /** Opening the page: what was kept shows at once, and fresh numbers are fetched if they are more than two minutes old. */
-    fun openOpenRouter() {
-        val app = getApplication<Application>()
-        viewModelScope.launch(Dispatchers.IO) {
-            OpenRouterHub.ensureLoaded(app)
-            if (OpenRouterHub.state.value.hasKey && OpenRouterHub.isStale(2 * 60_000L)) OpenRouterHub.refresh(app)
-        }
-    }
-
-    fun refreshOpenRouter() {
-        val app = getApplication<Application>()
-        viewModelScope.launch(Dispatchers.IO) { OpenRouterHub.refresh(app) }
-    }
-
-    /** Keeps [key] (encrypted) and fetches with it. Returns a complaint if it can't be a key, else null. */
-    fun saveOpenRouterKey(key: String): String? {
-        val clean = key.trim()
-        if (clean.length < 20 || clean.any { it.isWhitespace() }) return "That doesn’t look like an OpenRouter key. Copy the whole key, without spaces."
-        val app = getApplication<Application>()
-        viewModelScope.launch(Dispatchers.IO) {
-            OpenRouterHub.saveKey(app, clean)
-            OpenRouterHub.refresh(app)
-        }
-        return null
-    }
-
-    fun removeOpenRouterKey() {
-        val app = getApplication<Application>()
-        viewModelScope.launch(Dispatchers.IO) { OpenRouterHub.removeKey(app) }
+        viewModelScope.launch(Dispatchers.IO) { io.github.erkanw.vault.usage.Budget.refresh(app) }
     }
 
     // ---- models -----------------------------------------------------------------------------------------------
