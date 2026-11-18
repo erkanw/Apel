@@ -5,9 +5,9 @@ tools, databases and memory live in the app. You connect your own AI provider (O
 OpenAI-compatible server) and pay it directly, only for what you use. There is no server, no account with the maker
 and no telemetry.
 
-> **Status: early development.** You can sign in to OpenRouter (or your own server) and chat with an agent that searches
-> the web, reads pages, keeps notes and remembers things, asking first before risky steps. Skills, automations,
-> databases and the rest arrive in stages; nothing is released yet.
+> **Status: early development.** Chat, tools, files, skills, automations, databases, usage and the budget, the widgets,
+> remote tool servers and an experimental browser all work on a test phone. Backups, an accessibility pass and the
+> first release come next; nothing is released yet.
 
 ## What it will do
 
@@ -15,8 +15,9 @@ and no telemetry.
   (pictures, PDFs, text files), dictation, edit and ask again (a fork of the chat), and Markdown.
 - **Channels**: chats kept apart under their own name and colour. Two starters, Daily brief and Notes.
 - **Tools**: web search, reading pages, files in its workspace, databases, memory, automations, skills,
-  notifications, and remote tool servers (MCP over HTTP). Each tool is Allowed, Ask first or Off; risky actions wait
-  for your OK.
+  notifications, remote tool servers (MCP over HTTP, added with an address and an optional token), and an
+  experimental hidden browser that can open, read, click and type on public pages (off until you turn it on). Each
+  tool is Allowed, Ask first or Off; risky actions wait for your OK.
 - **Files**: the agent's workspace, which you can browse, edit, import into and share from.
 - **Skills**: instructions the agent follows, in the Agent Skills layout (`SKILL.md`); create, edit, import, export.
 - **Automations**: scheduled jobs that run with the screen off and post their result to a channel.

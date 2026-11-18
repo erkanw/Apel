@@ -13,6 +13,7 @@ import io.github.erkanw.vault.chat.FileListing
 import io.github.erkanw.vault.chat.IngressLimits
 import io.github.erkanw.vault.chat.LOCAL_COMMANDS
 import io.github.erkanw.vault.chat.McpServer
+import io.github.erkanw.vault.chat.McpTest
 import io.github.erkanw.vault.chat.MessageAttachment
 import io.github.erkanw.vault.chat.ModelChoices
 import io.github.erkanw.vault.chat.ModelPreset
@@ -86,7 +87,6 @@ class LocalBackend(context: Context) : AgentBackend {
     override val connected: Boolean get() = ProviderStore.state.value.connected
 
     private fun notConnected(): Nothing = throw ChatException(app.getString(R.string.not_connected))
-    private fun later(): Nothing = throw ChatException("This comes in a later version.")
 
     // ---- sessions ----
 
@@ -486,7 +486,7 @@ class LocalBackend(context: Context) : AgentBackend {
             steps += step
             emit(TurnEvent.Progress(step))
         }
-        val tool = ToolRegistry.tool(c.name)
+        val tool = ToolRegistry.tool(app, c.name)
         if (tool == null) {
             keep("${c.name} (no such tool)")
             return "There is no tool called “${c.name}”."
@@ -533,7 +533,11 @@ class LocalBackend(context: Context) : AgentBackend {
             }
         }
         emit(TurnEvent.ToolHint(tool.hint(args)))
-        val limit = if (tool.name.startsWith("web_")) 20_000L else 30_000L
+        val limit = when {
+            tool.name.startsWith("web_") -> 20_000L
+            tool.name.startsWith("mcp_") || tool.name.startsWith("browser_") -> 45_000L
+            else -> 30_000L
+        }
         ctx.inFlight = tool.step(args)
         val result = try {
             kotlinx.coroutines.withTimeout(limit) { tool.run(args, ctx) }.also { if (tool.name == "web_fetch") ctx.readWeb = true }
@@ -742,9 +746,36 @@ class LocalBackend(context: Context) : AgentBackend {
     }
 
     override suspend fun setToolLevel(path: String, level: ToolLevel) = ToolRegistry.setLevel(app, path, level)
-    override suspend fun mcpServers(): List<McpServer> = emptyList()
+    override suspend fun mcpServers(): List<McpServer> = io.github.erkanw.vault.tools.McpStore.servers(app).map { s ->
+        McpServer(
+            name = s.id, title = s.name,
+            tools = io.github.erkanw.vault.tools.McpStore.toolsOf(s).map { it.name },
+            enabledTools = io.github.erkanw.vault.tools.McpStore.enabled(s),
+            available = s.lastError.isEmpty(), status = s.lastError, url = s.url,
+            descriptions = io.github.erkanw.vault.tools.McpStore.toolsOf(s).associate { it.name to it.description },
+        )
+    }
+
+    override suspend fun testMcpServer(address: String, token: String): McpTest {
+        val checked = try { io.github.erkanw.vault.tools.McpStore.checkAddress(address) } catch (e: IllegalArgumentException) { throw ChatException(e.message ?: "That isn’t a web address.") }
+        return try {
+            val (name, tools) = io.github.erkanw.vault.tools.McpStore.test(checked.url, token)
+            McpTest(checked.url, name, tools.map { it.name }, checked.warning)
+        } catch (e: io.github.erkanw.vault.tools.McpException) {
+            throw ChatException(e.message ?: "Couldn’t reach the server.")
+        }
+    }
+
+    override suspend fun addMcpServer(address: String, token: String, name: String): String {
+        val checked = try { io.github.erkanw.vault.tools.McpStore.checkAddress(address) } catch (e: IllegalArgumentException) { throw ChatException(e.message ?: "That isn’t a web address.") }
+        val (found, tools) = try { io.github.erkanw.vault.tools.McpStore.test(checked.url, token) } catch (e: io.github.erkanw.vault.tools.McpException) { throw ChatException(e.message ?: "Couldn’t reach the server.") }
+        return io.github.erkanw.vault.tools.McpStore.add(app, checked.url, token, name.ifBlank { found }, tools)
+    }
+
+    override suspend fun refreshMcpServer(server: String) = io.github.erkanw.vault.tools.McpStore.refresh(app, server)
+    override suspend fun removeMcpServer(server: String) = io.github.erkanw.vault.tools.McpStore.remove(app, server)
     override suspend fun setBuiltInTool(path: String, on: Boolean) = ToolRegistry.setLevel(app, path, if (on) ToolLevel.Allowed else ToolLevel.Off)
-    override suspend fun setMcpTools(server: String, enabledTools: List<String>) = later()
+    override suspend fun setMcpTools(server: String, enabledTools: List<String>) = io.github.erkanw.vault.tools.McpStore.setEnabled(app, server, enabledTools)
     // ---- automations (PLAN §8) ----
 
     override suspend fun automations(): List<AutomationJob> = Automations.jobs(app)

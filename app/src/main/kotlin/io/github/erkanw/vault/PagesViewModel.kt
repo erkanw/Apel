@@ -228,6 +228,57 @@ class PagesViewModel(app: Application) : AndroidViewModel(app) {
         ::loadTools,
     ) { backend.setMcpTools(server.name, enabled) }
 
+    /** Reaches a tool server without keeping it: what it offers, or why not. */
+    fun testServer(address: String, token: String, onResult: (Result<io.github.erkanw.vault.chat.McpTest>) -> Unit) {
+        viewModelScope.launch {
+            val r = try {
+                Result.success(backend.testMcpServer(address, token))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+            onResult(r)
+        }
+    }
+
+    /** Adds a tool server; [onDone] gets null, or why it couldn't be added. */
+    fun addServer(address: String, token: String, name: String, onDone: (String?) -> Unit) {
+        viewModelScope.launch {
+            val error = try {
+                backend.addMcpServer(address, token, name)
+                null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                e.message ?: "Couldn’t add the server."
+            }
+            onDone(error)
+            if (error == null) loadTools()
+        }
+    }
+
+    /** Reads a server's tools again (it may have new ones, or be back). */
+    fun refreshServer(server: McpServer, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            runCatching { backend.refreshMcpServer(server.name) }
+            loadTools()
+            onDone()
+        }
+    }
+
+    fun removeServer(server: McpServer) = act(
+        _mcpServers, { list -> list.filter { it.name != server.name } }, "Couldn’t remove ${server.title}.", ::loadTools,
+    ) { backend.removeMcpServer(server.name) }
+
+    /** Closes the experimental browser's page and deletes its cookies and stored data. */
+    fun clearBrowser(onDone: () -> Unit) {
+        viewModelScope.launch {
+            runCatching { io.github.erkanw.vault.tools.BrowserSession.clear() }
+            onDone()
+        }
+    }
+
     // ---- Files: the agent's workspace -----------------------------------------------------------------
 
     private val _files = MutableStateFlow(FilesState())

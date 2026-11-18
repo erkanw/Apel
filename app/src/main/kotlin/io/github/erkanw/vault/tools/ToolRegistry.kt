@@ -20,14 +20,17 @@ object ToolRegistry {
         FileTools.Search, MemoryTools.Read, MemoryTools.Write, SkillStore.ListTool, SkillStore.ReadTool, SkillStore.SaveTool,
         AutomationTools.ListTool, AutomationTools.CreateTool, AutomationTools.UpdateTool, AutomationTools.DeleteTool,
         DbTools.ListTool, DbTools.SchemaTool, DbTools.QueryTool, DbTools.ExecuteTool, TimeTool, NotifyTool,
-    )
+    ) + BrowserTools.all
 
     fun tool(name: String): Tool? = tools.firstOrNull { it.name == name }
+
+    /** A built-in tool, or a tool server's tool (`mcp_…`). */
+    fun tool(context: Context, name: String): Tool? = tool(name) ?: McpStore.tool(context, name)
 
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     fun level(context: Context, name: String): ToolLevel {
-        val default = if (name == WEB_SEARCH) ToolLevel.Allowed else tool(name)?.defaultLevel ?: ToolLevel.Off
+        val default = if (name == WEB_SEARCH) ToolLevel.Allowed else tool(context, name)?.defaultLevel ?: ToolLevel.Off
         val stored = ToolLevel.of(prefs(context).getString(name, null)) ?: default
         // OpenRouter runs the search itself, so the app can’t ask first: it is on or off.
         return if (name == WEB_SEARCH && stored == ToolLevel.Ask) ToolLevel.Off else stored
@@ -41,6 +44,16 @@ object ToolRegistry {
     /** The tools array for a request: every tool that isn't Off, and OpenRouter's web search when it is on. */
     fun specs(context: Context, kind: ProviderKind): JSONArray = JSONArray().apply {
         for (t in tools) {
+            if (level(context, t.name) == ToolLevel.Off) continue
+            put(
+                JSONObject().put("type", "function").put(
+                    "function",
+                    JSONObject().put("name", t.name).put("description", t.instructions).put("parameters", t.schema),
+                ),
+            )
+        }
+        // The tool servers' tools that are switched on (a server's own switches are on the Tools page).
+        for (t in McpStore.agentTools(context)) {
             if (level(context, t.name) == ToolLevel.Off) continue
             put(
                 JSONObject().put("type", "function").put(

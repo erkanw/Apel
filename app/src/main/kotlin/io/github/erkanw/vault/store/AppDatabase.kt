@@ -340,11 +340,48 @@ interface UserDbDao {
     fun trimAudit()
 }
 
+/**
+ * A tool server (PLAN §5 `mcp_servers`, §7.4): MCP over Streamable HTTP. Its token is not here but in the Keystore, bound
+ * to [url]. [tools] is the last `tools/list` answer as JSON (name, description, inputSchema, readOnly), so a turn doesn't
+ * have to ask the server first; [enabledTools] is a JSON array, `["*"]` for all.
+ */
+@Entity(tableName = "mcp_servers")
+data class McpServerEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val url: String,
+    @ColumnInfo(name = "enabled_tools") val enabledTools: String = "[\"*\"]",
+    val tools: String = "[]",
+    /** When the tools were last read (0: never), and why the last attempt failed (empty: it worked). */
+    @ColumnInfo(name = "checked_at") val checkedAt: Long = 0L,
+    @ColumnInfo(name = "last_error") val lastError: String = "",
+    val created: Long,
+)
+
+@Dao
+interface McpDao {
+    @Query("SELECT * FROM mcp_servers ORDER BY created")
+    suspend fun all(): List<McpServerEntity>
+
+    @Query("SELECT * FROM mcp_servers WHERE id = :id")
+    suspend fun get(id: String): McpServerEntity?
+
+    @Insert
+    suspend fun insert(s: McpServerEntity)
+
+    @Update
+    suspend fun update(s: McpServerEntity)
+
+    @Query("DELETE FROM mcp_servers WHERE id = :id")
+    suspend fun delete(id: String)
+}
+
 @Database(
     entities = [SessionEntity::class, MessageEntity::class, AttachmentEntity::class, StepEntity::class, UsageEntity::class,
         AutomationEntity::class, AutomationRunEntity::class, UserDbEntity::class, DbAuditEntity::class,
+        McpServerEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -352,9 +389,21 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun usage(): UsageDao
     abstract fun automations(): AutomationDao
     abstract fun userDbs(): UserDbDao
+    abstract fun mcp(): McpDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
+
+        /** Phase 8: tool servers. */
+        val MIGRATION_6_7 = object : androidx.room.migration.Migration(6, 7) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `mcp_servers` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `url` TEXT NOT NULL, " +
+                        "`enabled_tools` TEXT NOT NULL, `tools` TEXT NOT NULL, `checked_at` INTEGER NOT NULL, `last_error` TEXT NOT NULL, " +
+                        "`created` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+                )
+            }
+        }
 
         /** Phase 7: how many calls each answer took. */
         val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
@@ -416,7 +465,7 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
-            instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "app.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build().also { instance = it }
+            instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "app.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7).build().also { instance = it }
         }
     }
 }

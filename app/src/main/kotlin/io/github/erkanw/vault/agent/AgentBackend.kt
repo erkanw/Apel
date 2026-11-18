@@ -101,6 +101,14 @@ interface AgentBackend {
     suspend fun setToolLevel(path: String, level: io.github.erkanw.vault.tools.ToolLevel) = setBuiltInTool(path, level != io.github.erkanw.vault.tools.ToolLevel.Off)
     suspend fun setMcpTools(server: String, enabledTools: List<String>)
 
+    /** Reaches a tool server at [address] (with [token], if any) and lists its tools, without keeping it. */
+    suspend fun testMcpServer(address: String, token: String): io.github.erkanw.vault.chat.McpTest = throw io.github.erkanw.vault.chat.ChatException("Tool servers can’t be added here.")
+
+    /** Adds a tool server (tested again first); its id. */
+    suspend fun addMcpServer(address: String, token: String, name: String): String = throw io.github.erkanw.vault.chat.ChatException("Tool servers can’t be added here.")
+    suspend fun refreshMcpServer(server: String) {}
+    suspend fun removeMcpServer(server: String) {}
+
     // ---- automations ----
     suspend fun automations(): List<AutomationJob>
 

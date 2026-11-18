@@ -25,6 +25,10 @@ data class McpServer(
     val enabledTools: List<String>,
     val available: Boolean,
     val status: String,
+    /** The server's address, as shown under its name in the sheet. */
+    val url: String = "",
+    /** Each tool's description, from the server. */
+    val descriptions: Map<String, String> = emptyMap(),
 ) {
     val allOn: Boolean get() = "*" in enabledTools
     fun isOn(tool: String): Boolean = allOn || tool in enabledTools
@@ -38,6 +42,9 @@ data class McpServer(
         return if (tools.isNotEmpty() && tools.all { it in next }) listOf("*") else next.filter { it in tools || tools.isEmpty() }
     }
 }
+
+/** What a test of a tool server found: the address as it will be kept, its name, its tools, and a warning for plain http. */
+data class McpTest(val url: String, val name: String, val tools: List<String>, val warning: String?)
 
 /** A tool server in a line: whether it answers, and how many of its tools are on. */
 fun serverSubtitle(s: McpServer): String = when {

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -46,7 +47,10 @@ private val GroupShape = RoundedCornerShape(18.dp)
 @Composable
 fun GroupLabel(title: String, modifier: Modifier = Modifier, trailing: (@Composable () -> Unit)? = null) {
     val k = MaterialTheme.vault
-    Row(modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier.fillMaxWidth().semantics(mergeDescendants = true) { heading() }.padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Text(title, style = VaultType.Label, color = k.muted, modifier = Modifier.weight(1f))
         if (trailing != null) trailing()
     }

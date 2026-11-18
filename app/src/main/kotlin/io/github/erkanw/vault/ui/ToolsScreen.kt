@@ -10,7 +10,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -42,6 +47,7 @@ import io.github.erkanw.vault.tools.ToolLevel
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.liveRegion
 
 /**
  * What the agent can use: the built-in tools (web search, pages, files...) and the tool servers it is connected to. A
@@ -55,6 +61,11 @@ fun ToolsScreen(vm: PagesViewModel, onBack: () -> Unit) {
     val servers by vm.mcpServers.collectAsStateWithLifecycle()
     var open by remember { mutableStateOf<String?>(null) }
     var levelOf by remember { mutableStateOf<String?>(null) }
+    var adding by remember { mutableStateOf(false) }
+    var removing by remember { mutableStateOf<McpServer?>(null) }
+    var clearingBrowser by remember { mutableStateOf(false) }
+    var note by remember { mutableStateOf<String?>(null) }
+    val agent = LocalAgentName.current
     val tracker = rememberEntranceTracker()
     LaunchedEffect(Unit) { vm.loadTools() }
 
@@ -77,11 +88,12 @@ fun ToolsScreen(vm: PagesViewModel, onBack: () -> Unit) {
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (builtIn.items.isNotEmpty()) item(key = "builtin") {
+                val (browser, core) = builtIn.items.partition { it.path.startsWith("browser_") }
+                if (core.isNotEmpty()) item(key = "builtin") {
                     Column(Modifier.entrance("builtin", 0, tracker, dx = 0.dp, dy = 8.dp)) {
                         GroupLabel("Built in")
                         VaultGroup {
-                            builtIn.items.forEachIndexed { i, tool ->
+                            core.forEachIndexed { i, tool ->
                                 if (i > 0) GroupDivider()
                                 GroupActionRow(
                                     tool.title,
@@ -93,10 +105,39 @@ fun ToolsScreen(vm: PagesViewModel, onBack: () -> Unit) {
                         }
                     }
                 }
-                if (servers.items.isNotEmpty()) item(key = "servers") {
-                    Column(Modifier.entrance("servers", 1, tracker, dx = 0.dp, dy = 8.dp).navigationBarsPadding()) {
-                        GroupLabel("Connected tools")
+                if (browser.isNotEmpty()) item(key = "browser") {
+                    Column(Modifier.entrance("browser", 1, tracker, dx = 0.dp, dy = 8.dp)) {
+                        GroupLabel("Browser", trailing = { Text("Experimental", style = VaultType.Label.copy(fontWeight = null), color = k.attention) })
                         VaultGroup {
+                            browser.forEachIndexed { i, tool ->
+                                if (i > 0) GroupDivider()
+                                GroupActionRow(tool.title, tool.level.label, { levelOf = tool.path }, chevron = true)
+                            }
+                            GroupDivider()
+                            GroupActionRow("Clear the browser’s data", "Its cookies, sign-ins and stored pages", { clearingBrowser = true })
+                        }
+                        Text(
+                            "A hidden browser on this phone that $agent can drive: it runs pages’ scripts, keeps its own cookies and never opens your home network. It can make mistakes on complex sites.",
+                            style = VaultType.Caption, color = k.muted, modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp),
+                        )
+                    }
+                }
+                item(key = "servers") {
+                    Column(Modifier.entrance("servers", 2, tracker, dx = 0.dp, dy = 8.dp).navigationBarsPadding()) {
+                        // The + keeps its 48dp target but not its height, so this label sits as close to its group as the others.
+                        GroupLabel("Connected tools", trailing = {
+                            Box(Modifier.height(20.dp).offset(x = 6.dp).wrapContentHeight(unbounded = true)) {
+                                BarButton(VaultIcons.Plus, "Add a tool server", { adding = true }, tint = k.muted, iconSize = 20.dp)
+                            }
+                        })
+                        if (servers.items.isEmpty()) {
+                            VaultGroup {
+                                Text(
+                                    "No tool servers yet. Add one with + to give $agent the tools it offers.",
+                                    style = VaultType.Body, color = k.muted, modifier = Modifier.padding(16.dp),
+                                )
+                            }
+                        } else VaultGroup {
                             servers.items.forEachIndexed { i, server ->
                                 if (i > 0) GroupDivider()
                                 ToolRow(
@@ -125,8 +166,117 @@ fun ToolsScreen(vm: PagesViewModel, onBack: () -> Unit) {
             server = server,
             onTool = { tool, on -> setTool(server, tool, on) },
             onAll = { on -> setServer(server, on) },
+            onRefresh = { done -> vm.refreshServer(server, done) },
+            onRemove = { removing = server },
             onDismiss = { open = null },
         )
+    }
+
+    if (adding) AddServerSheet(vm, onDismiss = { adding = false }, onAdded = { title -> adding = false; note = "Added $title." })
+
+    removing?.let { server ->
+        VaultDialog(
+            title = "Remove ${server.title}?",
+            text = "$agent can no longer use its tools, and its token is deleted from this phone.",
+            confirm = "Remove",
+            onConfirm = { vm.removeServer(server); removing = null; open = null },
+            onDismiss = { removing = null },
+            destructive = true,
+        )
+    }
+
+    if (clearingBrowser) VaultDialog(
+        title = "Clear the browser’s data?",
+        text = "Its cookies and stored pages are deleted, and the open page closes. Sites it was signed in to will need signing in again.",
+        confirm = "Clear",
+        onConfirm = { clearingBrowser = false; vm.clearBrowser { note = "Cleared the browser’s data." } },
+        onDismiss = { clearingBrowser = false },
+        destructive = true,
+    )
+
+    note?.let { text ->
+        LaunchedEffect(text) { kotlinx.coroutines.delay(4000); note = null }
+        Box(Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 24.dp), contentAlignment = Alignment.BottomCenter) {
+            Text(
+                text, style = VaultType.Label.copy(fontWeight = null), color = k.text,
+                modifier = Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(50)).background(k.pressed).padding(horizontal = 16.dp, vertical = 10.dp)
+                    .semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite },
+            )
+        }
+    }
+}
+
+/**
+ * Adding a tool server (handbook §3): its address and an optional token (masked, kept encrypted), Test (lists the tools it
+ * offers, or says why it can't be reached), then Add. Changing a field after a test asks for a new one.
+ */
+@Composable
+private fun AddServerSheet(vm: PagesViewModel, onDismiss: () -> Unit, onAdded: (String) -> Unit) {
+    val k = MaterialTheme.vault
+    var address by remember { mutableStateOf("") }
+    var token by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf("") }
+    var testing by remember { mutableStateOf(false) }
+    var saving by remember { mutableStateOf(false) }
+    var found by remember { mutableStateOf<io.github.erkanw.vault.chat.McpTest?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    fun changed() { found = null; error = null }
+    VaultSheet(onDismiss = onDismiss, title = "Add a tool server") {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            VaultField(
+                address, { address = it.trim(); changed() }, "Address",
+                placeholder = "https://example.com/mcp", keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri,
+                supporting = error ?: "The web address of a tool server, often ending in /mcp.",
+                isError = error != null,
+            )
+            VaultField(
+                token, { token = it.trim(); changed() }, "Token (optional)",
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+                transformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                supporting = "Kept encrypted on this phone and sent only to this address.",
+            )
+            found?.let { f ->
+                VaultField(name, { name = it.take(40) }, "Name", placeholder = f.name.ifBlank { "Tool server" })
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        if (f.tools.isEmpty()) "It answered, but offers no tools." else "It offers ${f.tools.size} tool${if (f.tools.size == 1) "" else "s"}:",
+                        style = VaultType.Label, color = k.text,
+                    )
+                    if (f.tools.isNotEmpty()) Text(
+                        f.tools.take(6).joinToString(", ") { toolTitle(it) } + if (f.tools.size > 6) ", and ${f.tools.size - 6} more" else "",
+                        style = VaultType.Caption, color = k.muted,
+                    )
+                    f.warning?.let { Text(it, style = VaultType.Caption, color = k.attention) }
+                }
+            }
+            if (found == null) {
+                PrimaryButton(if (testing) "Testing…" else "Test", {
+                    testing = true
+                    error = null
+                    val tested = address to token
+                    vm.testServer(address, token) { r ->
+                        testing = false
+                        // A field changed while the test ran: its result is for another address, so it is dropped.
+                        if (tested != address to token) return@testServer
+                        r.onSuccess { found = it; name = it.name.take(40) }.onFailure { error = it.message ?: "Couldn’t reach the server." }
+                    }
+                }, Modifier.fillMaxWidth(), enabled = address.isNotBlank() && !testing)
+            } else {
+                PrimaryButton(if (saving) "Adding…" else "Add server", {
+                    saving = true
+                    vm.addServer(address, token, name) { e ->
+                        saving = false
+                        if (e == null) onAdded(name.ifBlank { found?.name ?: "the server" }) else error = e
+                    }
+                }, Modifier.fillMaxWidth(), enabled = !saving)
+                // A failure to add (the server stopped answering) shows here: the address field only holds test failures.
+                error?.let { Text(it, style = VaultType.Caption, color = k.attention) }
+            }
+            Spacer(Modifier.heightIn(min = 4.dp))
+        }
     }
 }
 
@@ -194,8 +344,14 @@ private fun LevelSheet(tool: BuiltInTool, onLevel: (ToolLevel) -> Unit, onDismis
 
 /** A server's tools, one switch each, with all on / all off. */
 @Composable
-private fun ServerToolsSheet(server: McpServer, onTool: (String, Boolean) -> Unit, onAll: (Boolean) -> Unit, onDismiss: () -> Unit) {
+private fun ServerToolsSheet(
+    server: McpServer, onTool: (String, Boolean) -> Unit, onAll: (Boolean) -> Unit,
+    onRefresh: (onDone: () -> Unit) -> Unit, onRemove: () -> Unit, onDismiss: () -> Unit,
+) {
     val k = MaterialTheme.vault
+    // Check again: "Checking…" while it runs, then what it found.
+    var checking by remember { mutableStateOf(false) }
+    var checked by remember { mutableStateOf(false) }
     VaultSheet(onDismiss = onDismiss, title = server.title) {
         Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(serverSubtitle(server), style = VaultType.Label.copy(fontWeight = null), color = k.muted, modifier = Modifier.weight(1f))
@@ -209,22 +365,43 @@ private fun ServerToolsSheet(server: McpServer, onTool: (String, Boolean) -> Uni
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
             )
         } else {
-            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp)) {
+            // The list scrolls inside the sheet, so Check again and Remove stay in view however many tools there are.
+            Column(Modifier.fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp)) {
                 VaultGroup {
                     server.tools.forEachIndexed { i, tool ->
                         if (i > 0) GroupDivider()
-                        GroupSwitchRow(toolTitle(tool), null, server.isOn(tool), { onTool(tool, it) })
+                        // The server's own words, with curly apostrophes like the rest of the app.
+                        val about = server.descriptions[tool]?.lineSequence()?.firstOrNull()?.take(140)?.replace('\'', '’')?.ifBlank { null }
+                        GroupSwitchRow(toolTitle(tool), about, server.isOn(tool), { onTool(tool, it) })
                     }
                 }
-                Spacer(Modifier.width(1.dp).heightIn(min = 12.dp))
+                Text(
+                    "Tools the server marks as only reading run when they help; the others ask you first, until you choose Always allow.",
+                    style = VaultType.Caption, color = k.muted, modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp),
+                )
+                Spacer(Modifier.height(12.dp))
+            }
+        }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
+            if (!server.available && server.status.isNotBlank()) Text(server.status, style = VaultType.Caption, color = k.attention, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+            if (server.url.isNotBlank()) Text(server.url, style = VaultType.Caption, color = k.muted, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            VaultGroup {
+                GroupActionRow(
+                    "Check again",
+                    when {
+                        checking -> "Checking…"
+                        checked && server.available -> "Up to date: ${server.tools.size} tool${if (server.tools.size == 1) "" else "s"}"
+                        else -> "Reads its tools again"
+                    },
+                    { checking = true; onRefresh { checking = false; checked = true } },
+                    enabled = !checking,
+                )
+                GroupDivider()
+                GroupActionRow("Remove server", null, onRemove, color = k.danger)
             }
         }
     }
 }
 
 /** A tool's name made readable: "browser_take_screenshot" → "Take screenshot" (the server's prefix dropped). */
-internal fun toolTitle(tool: String): String {
-    val words = tool.split('_', '-').filter { it.isNotBlank() }
-    val trimmed = if (words.size > 1 && words.first() in setOf("browser", "db")) words.drop(1) else words
-    return trimmed.joinToString(" ").replaceFirstChar { it.uppercase() }.ifBlank { tool }
-}
+internal fun toolTitle(tool: String): String = io.github.erkanw.vault.tools.readableToolName(tool)
