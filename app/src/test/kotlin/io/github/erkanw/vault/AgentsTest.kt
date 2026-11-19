@@ -91,3 +91,22 @@ class AgentsTest {
         assertEquals(2, s.agents.first().messages)
     }
 }
+
+class ServerModelsTest {
+    private fun p(name: String, model: String) = io.github.erkanw.vault.chat.ModelPreset(name, name, model, false)
+
+    @Test fun groqListBecomesPresets() {
+        val ids = listOf("llama-3.3-70b-versatile", "whisper-large-v3", "playai-tts", "meta-llama/llama-guard-4-12b", "openai/gpt-oss-120b")
+        val (presets, order) = io.github.erkanw.vault.chat.syncServerPresets(emptyList(), emptyList(), ids)
+        assertEquals(listOf("llama-3.3-70b-versatile", "openai/gpt-oss-120b"), presets.map { it.model })
+        assertEquals(listOf(presets.first().name), order)
+    }
+
+    @Test fun syncKeepsTheMainModelAndFollowsTheServer() {
+        val before = listOf(p("gpt-oss-120b", "openai/gpt-oss-120b"), p("old", "gone-model"))
+        val (presets, order) = io.github.erkanw.vault.chat.syncServerPresets(before, listOf("gpt-oss-120b", "old"), listOf("openai/gpt-oss-120b", "qwen/qwen3-32b"))
+        assertEquals(listOf("openai/gpt-oss-120b", "qwen/qwen3-32b"), presets.map { it.model })
+        // The main model stays main; a new model is offered but isn't made a fallback.
+        assertEquals(listOf("gpt-oss-120b"), order)
+    }
+}

@@ -168,7 +168,7 @@ object ProviderClient {
                 if (!response.isSuccessful) throw providerError(response.code, errorDetailOf(text), target.kind == ProviderKind.OpenRouter, "")
                 val data = try { JSONObject(text).optJSONArray("data") } catch (e: Exception) { null }
                     ?: throw ProviderException("That address answered, but not like an OpenAI-compatible server. Check that it ends in /v1.")
-                List(data.length()) { data.optJSONObject(it)?.optString("id").orEmpty() }.filter { it.isNotBlank() }.sorted()
+                List(data.length()) { data.optJSONObject(it)?.optString("id").orEmpty() }.filter { io.github.erkanw.vault.chat.isChatModel(it) }.sorted()
             }
         } catch (e: IOException) {
             throw networkError(e, host)

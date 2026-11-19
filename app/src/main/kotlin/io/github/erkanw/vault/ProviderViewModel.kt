@@ -197,6 +197,8 @@ class ProviderViewModel(app: Application) : AndroidViewModel(app) {
                     ?: if (ProviderStore.state.value.customUrl == checked.url) ProviderStore.target(getApplication())?.key else null))
                 if (ProviderStore.state.value.kind != ProviderKind.Custom || ProviderStore.state.value.customUrl != checked.url) models.clear()
                 ProviderStore.connectCustom(getApplication(), checked.url, key)
+                // Every chat model the server offers becomes a model here (the one you pick next becomes the main one).
+                models.syncWithServer(list)
                 _custom.value = CustomServer(warning = checked.warning, models = list)
                 ModelsHub.refresh(AppGraph.backend(getApplication()))
             } catch (e: CancellationException) {
@@ -213,7 +215,10 @@ class ProviderViewModel(app: Application) : AndroidViewModel(app) {
         if (target.kind != ProviderKind.Custom) return
         viewModelScope.launch {
             try {
-                _custom.value = _custom.value.copy(models = ProviderClient.models(target), error = null)
+                val list = ProviderClient.models(target)
+                models.syncWithServer(list)
+                _custom.value = _custom.value.copy(models = list, error = null)
+                ModelsHub.refresh(AppGraph.backend(getApplication()))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

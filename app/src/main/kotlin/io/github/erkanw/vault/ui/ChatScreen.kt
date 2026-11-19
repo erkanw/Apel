@@ -552,7 +552,8 @@ fun ChatScreen(vm: ChatViewModel, focusTick: Int, onBack: () -> Unit, onSettings
     LaunchedEffect(showModels) { if (showModels) vm.loadCatalog() }
     if (showModels) {
         ModelSheet(
-            catalog = catalog.models,
+            // OpenRouter's prices only mean something on OpenRouter; your own server (often free, like Groq) shows none.
+            catalog = if (io.github.erkanw.vault.provider.ProviderStore.state.value.kind == io.github.erkanw.vault.provider.ProviderKind.OpenRouter) catalog.models else emptyList(),
             catalogLoading = catalog.loading,
             choices = models,
             current = preset,

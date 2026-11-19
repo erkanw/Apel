@@ -336,8 +336,8 @@ fun AgentScreen(vm: AgentsViewModel, agentId: String, onBack: () -> Unit, onLook
                 vm.presets().forEach { p ->
                     GroupDivider()
                     val m = catalog.models.firstOrNull { it.id == p.model }
-                    val price = m?.let { io.github.erkanw.vault.provider.priceLine(it.free, it.bestIn, it.bestOut) }
-                        ?: if (p.model.endsWith(":free")) io.github.erkanw.vault.provider.priceLine(true, 0.0, 0.0) else null
+                    val price = if (!(io.github.erkanw.vault.provider.ProviderStore.state.value.kind == io.github.erkanw.vault.provider.ProviderKind.OpenRouter)) null else m?.let { io.github.erkanw.vault.provider.priceLine(it.free, it.bestIn, it.bestOut) }
+                        ?: if (p.model.endsWith(":free") && (io.github.erkanw.vault.provider.ProviderStore.state.value.kind == io.github.erkanw.vault.provider.ProviderKind.OpenRouter)) io.github.erkanw.vault.provider.priceLine(true, 0.0, 0.0) else null
                     ModelChoiceRow(p.label.ifBlank { p.name }, price, agent.row.model == p.name) { vm.setModel(agent.id, p.name); picking = false }
                 }
             }

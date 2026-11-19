@@ -122,10 +122,18 @@ fun ModelsScreen(vm: SettingsViewModel, onBack: () -> Unit, onSettings: () -> Un
                 }
                 return@LazyColumn
             }
-            item(key = "add") {
+            // Only OpenRouter has a catalogue to add from; your own server's models are the ones it lists.
+            if (vm.catalogue) item(key = "add") {
                 PrimaryButton("Add a model", { adding = true }, Modifier.fillMaxWidth())
             }
-            item(key = "note") {
+            if (!vm.catalogue) item(key = "server-note") {
+                Text(
+                    "These are the models your server offers. The list follows the server: when it adds or drops a model, so does this page.",
+                    color = k.muted, style = VaultType.Caption, lineHeight = 17.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                )
+            }
+            if (vm.catalogue) item(key = "note") {
                 Text(
                     "Everything ${LocalAgentName.current} asks of OpenRouter goes only to providers that keep no data (zero data retention), the " +
                         "cheapest first. That holds for every model below, and a model with no such " +
@@ -176,10 +184,11 @@ fun ModelsScreen(vm: SettingsViewModel, onBack: () -> Unit, onSettings: () -> Un
                 editing = null
             },
             onFallback = { vm.setModelFallback(current.name, it) },
-            onRemove = {
+            // Your own server's models follow its list: removing one would be undone, so it isn't offered.
+            onRemove = if (vm.catalogue) ({
                 vm.removeModel(current.name)
                 editing = null
-            },
+            }) else null,
             onDismiss = { editing = null },
         )
     }
@@ -275,7 +284,7 @@ private fun ModelEditSheet(
     onSave: (label: String, maxTokens: Long, contextTokens: Long) -> Unit,
     onMakeMain: () -> Unit,
     onFallback: (Boolean) -> Unit,
-    onRemove: () -> Unit,
+    onRemove: (() -> Unit)?,
     onDismiss: () -> Unit,
 ) {
     val k = MaterialTheme.vault
@@ -351,7 +360,7 @@ private fun ModelEditSheet(
             PrimaryButton("Save", { if (valid) onSave(label, maxTokens!!, ctx!!) }, Modifier.fillMaxWidth().padding(top = 4.dp), enabled = valid)
             if (isMain) {
                 Text("The main model can’t be removed. Make another one main first.", color = k.muted, style = VaultType.Caption)
-            } else {
+            } else if (onRemove != null) {
                 QuietButton("Remove this model", { confirmRemove = true }, Modifier.fillMaxWidth(), color = k.danger)
             }
         }
@@ -363,7 +372,7 @@ private fun ModelEditSheet(
             confirm = "Remove",
             onConfirm = {
                 confirmRemove = false
-                onRemove()
+                onRemove?.invoke()
             },
             onDismiss = { confirmRemove = false },
         )

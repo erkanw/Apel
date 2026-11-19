@@ -64,6 +64,13 @@ class ModelStore(context: Context) {
         save(s.copy(callOrder = order.filter { n -> s.presets.any { it.name == n } }))
     }
 
+    /** Your own server's models, kept in step with what it lists (see [io.github.erkanw.vault.chat.syncServerPresets]). */
+    fun syncWithServer(ids: List<String>) {
+        val s = load()
+        val (presets, order) = io.github.erkanw.vault.chat.syncServerPresets(s.presets, s.callOrder, ids)
+        save(Saved(presets, order))
+    }
+
     /** Signing out of one provider and into another: the old models don't run there. */
     fun clear() = prefs.edit { remove(KEY) }
 

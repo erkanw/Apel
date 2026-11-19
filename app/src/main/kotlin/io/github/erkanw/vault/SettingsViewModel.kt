@@ -204,7 +204,28 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Reads the presets again (the page opens with it, and every change ends with it). */
     fun loadModels() {
-        viewModelScope.launch { ModelsHub.refresh(backend) }
+        viewModelScope.launch {
+            syncServerModels()
+            ModelsHub.refresh(backend)
+        }
+    }
+
+    /** True with OpenRouter: "Add a model" searches its catalogue. Your own server's models come from the server. */
+    val catalogue: Boolean get() = io.github.erkanw.vault.provider.ProviderStore.state.value.kind == io.github.erkanw.vault.provider.ProviderKind.OpenRouter
+
+    /** With your own server, its current list of models (a failure leaves the list as it was and says why). */
+    private suspend fun syncServerModels() {
+        val app = getApplication<Application>()
+        val target = io.github.erkanw.vault.provider.ProviderStore.target(app) ?: return
+        if (target.kind != io.github.erkanw.vault.provider.ProviderKind.Custom) return
+        try {
+            val ids = io.github.erkanw.vault.provider.ProviderClient.models(target)
+            io.github.erkanw.vault.store.ModelStore(app).syncWithServer(ids)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _modelsStatus.value = ModelsStatus(error = "The server’s list of models couldn’t be read: ${e.message ?: "no answer"}")
+        }
     }
 
     fun loadCatalog(force: Boolean = false) {

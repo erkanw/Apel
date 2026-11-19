@@ -41,7 +41,7 @@ fun parseModels(body: String): List<String> {
         val raw = data.optJSONObject(i)?.optString("id", "").orEmpty()
         val id = raw.removePrefix("models/")
         val lower = id.lowercase()
-        if (id.isEmpty() || NOT_CHAT.any { lower.contains(it) }) continue
+        if (id.isEmpty() || NOT_CHAT.any { lower.contains(it) } || !isChatModel(id)) continue
         ids.add(id)
     }
     return ids
