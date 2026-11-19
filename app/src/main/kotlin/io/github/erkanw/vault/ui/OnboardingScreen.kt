@@ -39,7 +39,7 @@ import io.github.erkanw.vault.mascot.Blob
 import io.github.erkanw.vault.mascot.BlobMood
 import io.github.erkanw.vault.provider.ProviderKind
 
-private enum class Step { Welcome, Connect, OwnServer, Model, Yours }
+private enum class Step { Welcome, Connect, OwnServer, Model, AboutYou, Yours }
 
 /**
  * The first run (PLAN §6.1, handbook §3): welcome, connect (OpenRouter, your own server, or look around first), the
@@ -59,6 +59,8 @@ fun OnboardingScreen(vm: ProviderViewModel, onDone: () -> Unit) {
     var chosen by rememberSaveable { mutableStateOf<String?>(null) }
     var warnFor by rememberSaveable { mutableStateOf<String?>(null) }
     var lookOpen by rememberSaveable { mutableStateOf(false) }
+    var about by androidx.compose.runtime.remember { mutableStateOf(io.github.erkanw.vault.store.AgentProfile.about(context)) }
+    var aboutTried by androidx.compose.runtime.remember { mutableStateOf(false) }
     // A new phone can start from a backup instead (PLAN §6.12): the same picker and question as Settings.
     val settings = androidx.lifecycle.viewmodel.compose.viewModel<io.github.erkanw.vault.SettingsViewModel>()
     val backup by settings.backup.collectAsStateWithLifecycle()
@@ -76,6 +78,7 @@ fun OnboardingScreen(vm: ProviderViewModel, onDone: () -> Unit) {
             Step.Connect -> Step.Welcome
             Step.OwnServer -> Step.Connect
             Step.Model -> Step.Connect
+            Step.Yours -> Step.AboutYou
             else -> if (state.connected) Step.Model else Step.Connect
         }.name
     }
@@ -131,7 +134,7 @@ fun OnboardingScreen(vm: ProviderViewModel, onDone: () -> Unit) {
                         Spacer(Modifier.height(16.dp))
                         CustomServerForm(vm, onChosen = { id ->
                             vm.chooseModel(id, io.github.erkanw.vault.chat.prettyModelName(id).ifBlank { id }, null, allowKeepsData = false)
-                            stepName = Step.Yours.name
+                            stepName = Step.AboutYou.name
                         })
                     }
                     Step.Model -> {
@@ -145,6 +148,12 @@ fun OnboardingScreen(vm: ProviderViewModel, onDone: () -> Unit) {
                         }
                         if (catalog.loading) Text("Reading prices…", style = VaultType.Caption, color = k.muted, modifier = Modifier.padding(top = 8.dp))
                         catalog.error?.let { Text("Prices couldn’t be read. You can still choose.", style = VaultType.Caption, color = k.muted, modifier = Modifier.padding(top = 8.dp)) }
+                    }
+                    Step.AboutYou -> {
+                        Heading(androidx.compose.ui.res.stringResource(io.github.erkanw.vault.R.string.about_you_step_title))
+                        Line(androidx.compose.ui.res.stringResource(io.github.erkanw.vault.R.string.about_you_step_line))
+                        Spacer(Modifier.height(16.dp))
+                        AboutYouForm(about, { about = it }, nameError = aboutTried && !about.ready)
                     }
                     Step.Yours -> {
                         Heading("Make it yours")
@@ -191,10 +200,17 @@ fun OnboardingScreen(vm: ProviderViewModel, onDone: () -> Unit) {
                             warnFor = pick.model.id
                         } else {
                             vm.chooseModel(pick.model.id, pick.model.label, pick.catalog, allowKeepsData = false)
-                            stepName = Step.Yours.name
+                            stepName = Step.AboutYou.name
                         }
                     }, Modifier.fillMaxWidth())
                 }
+                Step.AboutYou -> PrimaryButton("Continue", {
+                    aboutTried = true
+                    if (about.ready) {
+                        io.github.erkanw.vault.store.AgentProfile.setAbout(context, about)
+                        stepName = Step.Yours.name
+                    }
+                }, Modifier.fillMaxWidth())
                 Step.Yours -> PrimaryButton("Keep this look", {
                     vm.finishWelcome(name)
                     onDone()
@@ -217,7 +233,7 @@ fun OnboardingScreen(vm: ProviderViewModel, onDone: () -> Unit) {
             onConfirm = {
                 warnFor = null
                 vm.chooseModel(pick.model.id, pick.model.label, pick.catalog, allowKeepsData = true)
-                stepName = Step.Yours.name
+                stepName = Step.AboutYou.name
             },
             onDismiss = { warnFor = null },
         )

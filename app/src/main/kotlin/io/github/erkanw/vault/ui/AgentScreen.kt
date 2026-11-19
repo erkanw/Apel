@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -194,12 +195,7 @@ fun AgentScreen(vm: AgentsViewModel, agentId: String, onBack: () -> Unit, onLook
             return
         }
         "about" -> {
-            TextEditorScreen(
-                title = stringResource(R.string.agent_about_you), subtitle = stringResource(R.string.agent_about_you_sub),
-                initial = remember { AgentProfile.aboutYou(context) }, hint = stringResource(R.string.agent_about_you_hint),
-                onSave = { AgentProfile.setAboutYou(context, it); editing = null },
-                onBack = { editing = null },
-            )
+            AboutYouScreen(onBack = { editing = null })
             return
         }
         "memory" -> {
@@ -384,6 +380,54 @@ private fun DbAccessRow(db: AgentDb, onAccess: (Access) -> Unit) {
     }
 }
 
+/**
+ * The About you form: name (needed), country, city, work or studies, and notes. Shared by every agent; also a step of
+ * the welcome. [onChange] gets every edit.
+ */
+@Composable
+fun AboutYouForm(about: io.github.erkanw.vault.store.AboutYou, onChange: (io.github.erkanw.vault.store.AboutYou) -> Unit, nameError: Boolean = false) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        VaultField(about.name, { onChange(about.copy(name = it.take(60))) }, stringResource(R.string.about_you_name),
+            supporting = if (nameError) stringResource(R.string.about_you_name_needed) else null, isError = nameError)
+        VaultField(about.country, { onChange(about.copy(country = it.take(60))) }, stringResource(R.string.about_you_country), placeholder = stringResource(R.string.about_you_optional))
+        VaultField(about.city, { onChange(about.copy(city = it.take(60))) }, stringResource(R.string.about_you_city), placeholder = stringResource(R.string.about_you_optional))
+        VaultField(about.work, { onChange(about.copy(work = it.take(120))) }, stringResource(R.string.about_you_work), placeholder = stringResource(R.string.about_you_work_hint))
+        VaultField(about.notes, { onChange(about.copy(notes = it.take(AgentProfile.MAX_RULES))) }, stringResource(R.string.about_you_notes),
+            placeholder = stringResource(R.string.about_you_notes_hint), singleLine = false, minLines = 3)
+    }
+}
+
+/** Settings → an agent → About you: the form on a page of its own, Save in the header. */
+@Composable
+private fun AboutYouScreen(onBack: () -> Unit) {
+    val k = MaterialTheme.vault
+    val context = LocalContext.current
+    val initial = remember { AgentProfile.about(context) }
+    var about by remember { mutableStateOf(initial) }
+    var tried by remember { mutableStateOf(false) }
+    var leaving by remember { mutableStateOf(false) }
+    val back = { if (about != initial) leaving = true else onBack() }
+    BackHandler(onBack = back)
+    if (leaving) VaultDialog(
+        title = "Discard your changes?", text = "What you changed here isn’t saved.", confirm = "Discard", destructive = true,
+        onConfirm = { leaving = false; onBack() }, onDismiss = { leaving = false }, dismiss = "Keep editing",
+    )
+    Column(Modifier.fillMaxSize().background(k.background).imePadding()) {
+        PageHeader(stringResource(R.string.agent_about_you), stringResource(R.string.agent_about_you_sub), back, action = {
+            QuietButton("Save", {
+                tried = true
+                if (about.ready) { AgentProfile.setAbout(context, about); onBack() }
+            }, color = if (about != initial) k.text else k.muted)
+        })
+        Column(
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            Text(stringResource(R.string.agent_about_you_hint), style = VaultType.Caption, color = k.muted, modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 12.dp))
+            VaultGroup { Column(Modifier.padding(12.dp)) { AboutYouForm(about, { about = it }, nameError = tried && !about.ready) } }
+        }
+    }
+}
+
 /** The built-in nightly job (PLAN §6.8): off here is off on the Automations page too. It tidies every agent's memory. */
 @Composable
 private fun TidySwitch() {
@@ -434,13 +478,16 @@ fun TextEditorScreen(
         if (reset != null && text != reset.second) {
             Row(Modifier.padding(start = 8.dp)) { QuietButton(reset.first, { text = reset.second }, color = k.muted) }
         }
+        // The well starts at a few lines and grows a line at a time with the text; the page scrolls, not the well.
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding()) {
         BasicTextField(
             text, { text = it },
             textStyle = VaultType.Reading.copy(color = k.text),
             cursorBrush = SolidColor(k.text),
-            modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 16.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 16.dp)
+                .heightIn(min = 168.dp)
                 .background(k.surfaceHigh, RoundedCornerShape(18.dp))
-                .padding(16.dp).navigationBarsPadding(),
+                .padding(16.dp),
             decorationBox = { field ->
                 Box {
                     if (text.isEmpty() && placeholder != null) Text(placeholder, style = VaultType.Reading, color = k.faint)
@@ -448,5 +495,6 @@ fun TextEditorScreen(
                 }
             },
         )
+        }
     }
 }

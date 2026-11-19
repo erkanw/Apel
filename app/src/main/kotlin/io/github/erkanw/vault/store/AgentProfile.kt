@@ -42,8 +42,26 @@ object AgentProfile {
 
     fun instructions(context: Context): String = rules(context, "AGENT.md").takeIf { it.isFile }?.readText().orEmpty()
     fun setInstructions(context: Context, text: String) = rules(context, "AGENT.md").writeText(text.trim().take(MAX_RULES))
-    fun aboutYou(context: Context): String = rules(context, "USER.md").takeIf { it.isFile }?.readText().orEmpty()
-    fun setAboutYou(context: Context, text: String) = rules(context, "USER.md").writeText(text.trim().take(MAX_RULES))
+    /** What the agents read about you: the form's fields as short lines, then your notes. */
+    fun aboutYou(context: Context): String = AboutYou.text(about(context))
+
+    /** The About you form (PLAN §6.16): name (needed), country, city, work, and notes (the old free text). */
+    fun about(context: Context): AboutYou {
+        val p = prefs(context)
+        return AboutYou(
+            name = p.getString("you_name", "").orEmpty(), country = p.getString("you_country", "").orEmpty(),
+            city = p.getString("you_city", "").orEmpty(), work = p.getString("you_work", "").orEmpty(),
+            notes = rules(context, "USER.md").takeIf { it.isFile }?.readText().orEmpty(),
+        )
+    }
+
+    fun setAbout(context: Context, a: AboutYou) {
+        prefs(context).edit {
+            putString("you_name", a.name.trim().take(60)); putString("you_country", a.country.trim().take(60))
+            putString("you_city", a.city.trim().take(60)); putString("you_work", a.work.trim().take(120))
+        }
+        rules(context, "USER.md").writeText(a.notes.trim().take(MAX_RULES))
+    }
 
     /** Each rules file is capped, so it can’t crowd out the chat. */
     const val MAX_RULES = 8_000
@@ -51,4 +69,22 @@ object AgentProfile {
     fun welcomeDone(context: Context): Boolean = prefs(context).getBoolean(KEY_WELCOME, false)
 
     fun setWelcomeDone(context: Context, done: Boolean) = prefs(context).edit { putBoolean(KEY_WELCOME, done) }
+}
+
+/** What you tell your agents about yourself. Only the name is needed. */
+data class AboutYou(val name: String = "", val country: String = "", val city: String = "", val work: String = "", val notes: String = "") {
+    val ready: Boolean get() = name.isNotBlank()
+
+    companion object {
+        /** "Name: Sam\nLives in: Lyon, France\nWork: …\n\nNotes", skipping what is empty. */
+        fun text(a: AboutYou): String {
+            val lines = listOfNotNull(
+                a.name.trim().takeIf { it.isNotEmpty() }?.let { "Name: $it" },
+                listOf(a.city.trim(), a.country.trim()).filter { it.isNotEmpty() }.joinToString(", ").takeIf { it.isNotEmpty() }?.let { "Lives in: $it" },
+                a.work.trim().takeIf { it.isNotEmpty() }?.let { "Work or studies: $it" },
+            )
+            val notes = a.notes.trim()
+            return (lines.joinToString("\n") + if (notes.isNotEmpty()) (if (lines.isEmpty()) "" else "\n\n") + notes else "").trim()
+        }
+    }
 }

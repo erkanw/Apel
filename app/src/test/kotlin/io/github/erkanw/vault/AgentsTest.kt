@@ -110,3 +110,14 @@ class ServerModelsTest {
         assertEquals(listOf("gpt-oss-120b"), order)
     }
 }
+
+class AboutYouTest {
+    @Test fun formBecomesShortLines() {
+        val a = io.github.erkanw.vault.store.AboutYou("Sam", "France", "Lyon", "nurse", "Prefers short answers.")
+        assertEquals("Name: Sam\nLives in: Lyon, France\nWork or studies: nurse\n\nPrefers short answers.", io.github.erkanw.vault.store.AboutYou.text(a))
+        assertEquals("Name: Sam", io.github.erkanw.vault.store.AboutYou.text(io.github.erkanw.vault.store.AboutYou("Sam")))
+        // Text written before the form (now the notes) is kept as it was.
+        assertEquals("Old free text", io.github.erkanw.vault.store.AboutYou.text(io.github.erkanw.vault.store.AboutYou(notes = "Old free text")))
+        assertFalse(io.github.erkanw.vault.store.AboutYou(notes = "x").ready)
+    }
+}
