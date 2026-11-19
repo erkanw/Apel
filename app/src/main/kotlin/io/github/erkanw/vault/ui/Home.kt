@@ -505,16 +505,19 @@ private fun HomeDrawer(
         Box(Modifier.weight(1f)) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 20.dp)) {
             if (!searching) {
+                // Three sections, set apart by space (tone, not line): New chat; the agents; your files and data.
                 item(key = "new") { ToolRow(VaultIcons.SquarePen, "New chat", onNewSession) }
+                item(key = "gap-agents") { Spacer(Modifier.height(DrawerSectionGap)) }
                 item(key = "agents") { ToolRow(VaultIcons.Bot, "Agents") { onNavigate(Screen.Agents) } }
                 // Automations, skills and tools live one level down, in Agent settings (Phase 11).
                 item(key = "agent-settings") { ToolRow(VaultIcons.Cog, androidx.compose.ui.res.stringResource(io.github.erkanw.vault.R.string.agent_settings_title)) { onNavigate(Screen.AgentSettings) } }
+                item(key = "gap-data") { Spacer(Modifier.height(DrawerSectionGap)) }
                 item(key = "files") { ToolRow(VaultIcons.Folder, "Files") { onNavigate(Screen.Files) } }
                 item(key = "dbs") { ToolRow(VaultIcons.Database, "Databases") { onNavigate(Screen.Databases) } }
                 run {
                     // Making a channel is rare: a quiet + on the heading, not a row of its own in the list.
                     item(key = "ch-label") {
-                        Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth().padding(top = DrawerSectionGap), verticalAlignment = Alignment.CenterVertically) {
                             Text("Channels", style = VaultType.Label, color = k.muted, modifier = Modifier.weight(1f).padding(start = 12.dp))
                             BarButton(VaultIcons.Plus, "New channel", onNewChannel, tint = k.muted, iconSize = 18.dp)
                         }
@@ -600,6 +603,9 @@ private fun HomeDrawer(
         }
     }
 }
+
+/** Space between the drawer's sections of rows: a clear break, no line (the rows sit on one surface). */
+private val DrawerSectionGap = 12.dp
 
 @Composable
 private fun ToolRow(icon: ImageVector, title: String, onClick: () -> Unit) {
