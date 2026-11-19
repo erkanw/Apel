@@ -81,6 +81,8 @@ object AutomationTools {
             val schedule = scheduleOf(args) ?: throw ToolException("Give one of cron, every_minutes or at.")
             val channel = target(ctx, args.optString("runs_in"))
             val values = JSONObject().put("name", name).put("message", instruction).put("schedule", schedule.toJson()).put("channel", channel?.id.orEmpty())
+                // A job an agent makes runs as that agent (PLAN §6.16).
+                .put("agent", ctx.agent.id)
             val id = try { Automations.create(ctx.app, values) } catch (e: ChatException) { throw ToolException(e.message ?: "That didn’t work.") }
             val a = Automations.get(ctx.app, id) ?: throw ToolException("It was made but can’t be read back.")
             return "Made it.\n" + describe(ctx.app, a)

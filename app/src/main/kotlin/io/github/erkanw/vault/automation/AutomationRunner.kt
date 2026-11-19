@@ -193,7 +193,8 @@ object AutomationRunner {
             text = a.message,
             channelId = channel?.id,
             channelNote = look?.let { if (it.blurb.isBlank()) it.title else "${it.title} (${it.blurb})" },
-            automation = AutomationTurn(a.id, a.name, a.model, title = look?.title ?: a.name),
+            automation = AutomationTurn(a.id, a.name, a.model, title = look?.title ?: a.name, agentId = a.agentId),
+            agentId = a.agentId,
         )
         var sessionId: String? = chatId
         var answer = ""

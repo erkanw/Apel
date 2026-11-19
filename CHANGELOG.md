@@ -3,6 +3,18 @@
 Each release has a section here; its first lines are the GitHub release notes, and
 `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` holds the short version F-Droid shows.
 
+## 0.2.0 (versionCode 2)
+
+Agents: more than one agent, each made for a job.
+
+- **Agents** in the drawer: make one from a template (Study companion, Researcher, Training coach, Code reviewer) or
+  blank. Each has its own name, look, model, system prompt and memory; About you is shared.
+- **Everything is on by default**; on an agent's page you can switch off tools and skills and give it less access to a
+  database than the database allows.
+- **System prompt** for every agent, explained in the app, with an example to start from and a default.
+- Home's chips choose the agent for new chats; a channel and an automation choose theirs. Usage shows spend by agent.
+- Failed answers from free models say why free models fail more often. The OpenRouter sign-in works on Samsung phones.
+
 ## 0.1.0 (versionCode 1)
 
 The first release: an AI agent that runs entirely on your Android phone, with your own AI provider.

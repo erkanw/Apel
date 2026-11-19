@@ -36,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -213,6 +214,7 @@ fun VaultChip(
     Box(modifier.heightIn(min = 48.dp), contentAlignment = Alignment.Center) {
         Row(
             Modifier.height(36.dp).pressable(onClick = onClick, shape = CircleShape, rest = bg, pressed = if (selected) bg else if (onLift) k.faint else k.pressed, pressedScale = 0.95f, role = Role.Tab)
+                .semantics { this.selected = selected }
                 .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

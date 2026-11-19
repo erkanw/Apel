@@ -20,6 +20,10 @@ class ToolContext(
     val automation: String? = null,
     /** The channel this chat is, if it is one (a new automation made here posts here). */
     val channelId: String? = null,
+    /** The agent this turn runs as: what it may use, and where its memory is. */
+    val agent: io.github.erkanw.vault.agent.AgentScope = io.github.erkanw.vault.agent.AgentScope(
+        io.github.erkanw.vault.agent.AgentPresets.APEL, "", "",
+    ),
 ) {
     /** The turn read the web (a page or a search): what it keeps in memory now asks first (PLAN §10). */
     @Volatile var readWeb = false

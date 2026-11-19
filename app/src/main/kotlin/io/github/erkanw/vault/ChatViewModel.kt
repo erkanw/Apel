@@ -600,6 +600,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** The agent the open chat talks to (PLAN §6.16): the chat's own, a channel's, or the one new chats start with. */
+    private val _chatAgent = MutableStateFlow<String?>(null)
+    val chatAgent: StateFlow<String?> = _chatAgent.asStateFlow()
+
     /** Opens a session from the drawer: its messages load, and the next message continues it. */
     fun openSession(chatId: String) {
         markChatSeen(chatId, maxOf(System.currentTimeMillis(), _sessions.value.firstOrNull { it.chatId == chatId }?.updatedMs ?: 0L))
@@ -611,6 +615,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         setCurrent(chatId)
         _threadLoading.value = true
         val myEpoch = epoch
+        _chatAgent.value = null
+        viewModelScope.launch { runCatching { backend.sessionAgent(chatId) }.getOrNull().let { if (epoch == myEpoch) _chatAgent.value = it } }
         viewModelScope.launch {
             try {
                 val page = backend.thread(chatId)
@@ -634,6 +640,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         showMessages(emptyList())
         _threadLoading.value = false
         setCurrent(null)
+        _chatAgent.value = io.github.erkanw.vault.store.Agents.selected(getApplication())
     }
 
     // ---- channels -----------------------------------------------------------------------------------------
@@ -692,6 +699,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
         newSession()
         _pendingChannel.value = channel
+        _chatAgent.value = io.github.erkanw.vault.store.Agents.ofChannel(getApplication(), channel.id)
     }
 
     private fun bindPendingChannel(chatId: String) {
@@ -831,7 +839,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             try {
-                backend.run(_currentChatId.value, TurnInput(prompt, media, sentMessage.attachments, activeChannel.value?.id, activeChannel.value?.let { ChannelLooks.look(it).let { l -> if (l.blurb.isBlank()) l.title else "${l.title} (${l.blurb})" } })).collect { event ->
+                val agentId = activeChannel.value?.let { io.github.erkanw.vault.store.Agents.ofChannel(getApplication(), it.id) }
+                    ?: (if (activeChannel.value == null) io.github.erkanw.vault.store.Agents.selected(getApplication()) else null)
+                backend.run(_currentChatId.value, TurnInput(prompt, media, sentMessage.attachments, activeChannel.value?.id, activeChannel.value?.let { ChannelLooks.look(it).let { l -> if (l.blurb.isBlank()) l.title else "${l.title} (${l.blurb})" } }, agentId = agentId)).collect { event ->
                     if (!here()) return@collect
                     when (event) {
                         is TurnEvent.MessageAccepted -> if (_currentChatId.value == null) {

@@ -141,6 +141,8 @@ fun GroupActionRow(
     leading: (@Composable () -> Unit)? = null,
     /** Amber for a line that needs you (a failure to act on). */
     subtitleColor: Color? = null,
+    /** Shown at the end, before the chevron (a small mark, a check). */
+    trailing: (@Composable () -> Unit)? = null,
     /**
      * The second line is a status (progress, a failure): kept at full strength while the row is disabled, never cut,
      * and read out when it changes.
@@ -169,6 +171,10 @@ fun GroupActionRow(
                 maxLines = if (status) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis,
                 modifier = if (status) Modifier.semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite } else Modifier,
             )
+        }
+        if (trailing != null) {
+            Spacer(Modifier.width(8.dp))
+            trailing()
         }
         if (chevron) {
             Spacer(Modifier.width(8.dp))

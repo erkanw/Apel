@@ -18,6 +18,7 @@ class App : Application() {
         super.onCreate()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
+                io.github.erkanw.vault.store.Agents.ensure(this@App)
                 Automations.ensureBuiltIns(this@App)
                 Scheduler.arm(this@App)
                 Scheduler.ensurePeriodic(this@App)

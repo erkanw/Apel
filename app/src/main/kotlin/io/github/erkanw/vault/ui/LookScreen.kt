@@ -68,12 +68,18 @@ import io.github.erkanw.vault.widget.WidgetRedraw
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun LookScreen(onBack: () -> Unit) {
+fun LookScreen(
+    onBack: () -> Unit,
+    /** Another agent's look (PLAN §6.16): shown and changed through these; null is Apel's (the app's own). */
+    agentLook: BlobLook? = null,
+    agentName: String? = null,
+    onChoose: ((BlobLook) -> Unit)? = null,
+) {
     val k = MaterialTheme.vault
     val context = LocalContext.current
     val view = androidx.compose.ui.platform.LocalView.current
-    val look = LocalBlobLook.current
-    val agent = LocalAgentName.current
+    val look = agentLook ?: LocalBlobLook.current
+    val agent = agentName ?: LocalAgentName.current
     var moodName by rememberSaveable { mutableStateOf(BlobMood.Idle.name) }
     val mood = BlobMood.valueOf(moodName)
     var pokes by remember { mutableIntStateOf(0) }
@@ -81,12 +87,17 @@ fun LookScreen(onBack: () -> Unit) {
 
     fun choose(next: BlobLook) {
         if (next == look) return
-        LookStore.set(context, next)
         Haptics.tap(view)
+        if (onChoose != null) {
+            onChoose(next)
+            return
+        }
+        LookStore.set(context, next)
         // The widget's flipbook is drawn again in the background.
         WidgetRedraw.request(context)
     }
 
+    androidx.compose.runtime.CompositionLocalProvider(LocalBlobLook provides look) {
     Column(Modifier.fillMaxSize().background(k.background)) {
         PageHeader(
             title = "Look",
@@ -179,6 +190,7 @@ fun LookScreen(onBack: () -> Unit) {
                 Spacer(Modifier.height(8.dp))
             }
         }
+    }
     }
 }
 

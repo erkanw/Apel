@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -71,6 +72,9 @@ fun AutomationEditSheet(
     fun edit(d: io.github.erkanw.vault.chat.ScheduleDraft) { draft = d.copy(touched = true) }
     var target by remember { mutableStateOf(current) }
     var model by remember { mutableStateOf(job.model.ifEmpty { null }) }
+    var runsAs by remember { mutableStateOf(job.agent.ifEmpty { null }) }
+    val agentsVm = androidx.lifecycle.viewmodel.compose.viewModel<io.github.erkanw.vault.AgentsViewModel>()
+    val agentList by agentsVm.agents.collectAsStateWithLifecycle()
     var made by remember { mutableStateOf<List<Pair<Channel, ChannelLook>>>(emptyList()) }
     var creating by remember { mutableStateOf(false) }
     var tried by remember { mutableStateOf(false) }
@@ -146,6 +150,17 @@ fun AutomationEditSheet(
                 )
             }
 
+            if (agentList.size > 1) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(androidx.compose.ui.res.stringResource(io.github.erkanw.vault.R.string.agent_runs_as), style = VaultType.Label, color = k.muted)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        agentList.forEach { a ->
+                            VaultChip(a.name, { runsAs = a.id.takeIf { !a.isApel } }, selected = (runsAs ?: io.github.erkanw.vault.agent.AgentPresets.APEL) == a.id, leading = { AgentMark(a.look, size = 18.dp) })
+                        }
+                    }
+                }
+            }
+
             if (shownModels.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Model", style = VaultType.Label, color = k.muted)
@@ -174,7 +189,7 @@ fun AutomationEditSheet(
                             target = kept
                         }
                     } else to
-                    val values = ok.values.put("channel", real?.id.orEmpty()).put("model", model.orEmpty())
+                    val values = ok.values.put("channel", real?.id.orEmpty()).put("model", model.orEmpty()).put("agent", runsAs.orEmpty())
                     if (isNew) values.put("schedule", ok.schedule ?: return@PrimaryButton)
                     onSave(values, ok.schedule)
                 },

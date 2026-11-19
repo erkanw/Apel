@@ -214,7 +214,8 @@ object SkillStore {
     }
 
     /** The system prompt's skills index: the enabled skills, one line each. */
-    fun index(context: Context): String = all(context).filter { it.enabled }.joinToString("\n") { "- ${it.name}: ${it.description}" }
+    fun index(context: Context, agent: io.github.erkanw.vault.agent.AgentScope? = null): String =
+        all(context).filter { it.enabled && (agent == null || agent.skillOn(it.name)) }.joinToString("\n") { "- ${it.name}: ${it.description}" }
 
     object ListTool : Tool {
         override val name = "skill_list"
@@ -226,7 +227,8 @@ object SkillStore {
         override fun hint(args: JSONObject) = "Looking at the skills"
         override fun step(args: JSONObject) = "skill_list"
         override suspend fun run(args: JSONObject, ctx: ToolContext) =
-            all(ctx.app).joinToString("\n") { "${it.name}${if (it.builtIn) " (built in)" else ""}${if (it.enabled) "" else " (off)"}: ${it.description}" }
+            all(ctx.app).filter { ctx.agent.skillOn(it.name) }
+                .joinToString("\n") { "${it.name}${if (it.builtIn) " (built in)" else ""}${if (it.enabled) "" else " (off)"}: ${it.description}" }
     }
 
     object ReadTool : Tool {
@@ -240,7 +242,7 @@ object SkillStore {
         override fun step(args: JSONObject) = "read_skill " + args.optString("name")
         override suspend fun run(args: JSONObject, ctx: ToolContext): String {
             val s = get(ctx.app, args.need("name")) ?: throw ToolException("No skill called “${args.optString("name")}”. Use skill_list.")
-            if (!s.enabled) throw ToolException("That skill is switched off.")
+            if (!s.enabled || !ctx.agent.skillOn(s.name)) throw ToolException("That skill is switched off.")
             return "# Skill: ${s.name}\n${s.description}\n\n${s.body}"
         }
     }

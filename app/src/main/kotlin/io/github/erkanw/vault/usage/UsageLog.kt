@@ -34,12 +34,13 @@ object UsageLog {
     /** The log from [since] on, as the statistics read it. */
     suspend fun calls(context: Context, since: Long): List<UsageCall> =
         AppDatabase.get(context).usage().since(since).map {
-            UsageCall(it.time, it.model, it.source, it.automationId, it.requests.coerceAtLeast(1), it.tokensIn, it.tokensOut, it.cost)
+            UsageCall(it.time, it.model, it.source, it.automationId, it.requests.coerceAtLeast(1), it.tokensIn, it.tokensOut, it.cost, it.agentId)
         }
 
     /** The page's summary now, with each automation's name. */
     suspend fun summary(context: Context, now: Long = System.currentTimeMillis()): UsageSummary {
         val names = AppDatabase.get(context).automations().all().associate { it.id to it.name }
-        return UsageStats.summarize(calls(context, UsageStats.since(now)), now, names)
+        val agentNames = io.github.erkanw.vault.store.Agents.ensure(context).associate { it.id to it.name }
+        return UsageStats.summarize(calls(context, UsageStats.since(now)), now, names, agentNames)
     }
 }

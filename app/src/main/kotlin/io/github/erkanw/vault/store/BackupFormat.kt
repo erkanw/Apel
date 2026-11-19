@@ -36,7 +36,7 @@ object BackupFormat {
      */
     val PREFS = listOf(
         "agent", "automations_ui", "budget", "channel_looks", "look", "model_prefs", "models", "provider", "seen",
-        "settings", "skills", "tool_levels", "tools", "widget", "workspace",
+        "settings", "skills", "tool_levels", "tools", "widget", "workspace", "agents", "channel_agents",
     )
 
     /** At most this much unpacked: a phone backup bigger than this is not one Apel made. */

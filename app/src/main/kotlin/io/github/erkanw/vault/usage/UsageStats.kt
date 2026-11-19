@@ -25,6 +25,8 @@ data class UsageCall(
     val tokensOut: Long,
     /** Null when the provider doesn't say (your own server). */
     val cost: Double?,
+    /** The agent that answered (PLAN §6.16); null: Apel. */
+    val agentId: String? = null,
 )
 
 /** Who spent it: you, or one automation. [id] is "you" or the automation's id. */
@@ -39,6 +41,8 @@ data class UsageSummary(
     /** Most expensive first (then most used), over the 30 days. */
     val models: List<OrModelStat>,
     val sources: List<SourceStat>,
+    /** Spend per agent; shown only when more than one agent answered. */
+    val agents: List<SourceStat> = emptyList(),
     val messages: Int,
     val requests: Int,
     val tokensIn: Long,
@@ -58,6 +62,7 @@ data class UsageSummary(
 }
 
 object UsageStats {
+    private const val APEL = "apel"
     const val DAYS = 30
     const val YOU = "you"
 
@@ -75,7 +80,7 @@ object UsageStats {
      * The summary at [now] from [calls] (at least [since] back). [names] gives each automation's name; one no longer
      * there is "A deleted automation".
      */
-    fun summarize(calls: List<UsageCall>, now: Long, names: Map<String, String> = emptyMap()): UsageSummary {
+    fun summarize(calls: List<UsageCall>, now: Long, names: Map<String, String> = emptyMap(), agentNames: Map<String, String> = emptyMap()): UsageSummary {
         val today = utcDay(now)
         val monday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         val first = today.withDayOfMonth(1)
@@ -100,7 +105,11 @@ object UsageStats {
             }
             SourceStat(id, label, v.sumOf(::cost), v.size)
         }.sortedWith(compareByDescending<SourceStat> { it.cost }.thenByDescending { it.messages }.thenBy { it.label })
+        val agents = inside.groupBy { it.agentId ?: APEL }.map { (id, v) ->
+            SourceStat(id, agentNames[id] ?: if (id == APEL) "Apel" else "A deleted agent", v.sumOf(::cost), v.size)
+        }.sortedWith(compareByDescending<SourceStat> { it.cost }.thenByDescending { it.messages }.thenBy { it.label })
         return UsageSummary(
+            agents = agents,
             today = dated.filter { (d, _) -> d == today }.sumOf { cost(it.second) },
             week = dated.filter { (d, _) -> !d.isBefore(monday) }.sumOf { cost(it.second) },
             month = dated.filter { (d, _) -> !d.isBefore(first) }.sumOf { cost(it.second) },

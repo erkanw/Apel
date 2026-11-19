@@ -32,6 +32,68 @@
     <!-- Under a failed answer from a free model (once). -->
     <string name="free_model_note">Note: free models are often rate-limited by their providers and can stop partway. Longer tasks that take several steps, such as reading and writing databases, browsing or in-depth research, may not complete on a free model. A paid model is more reliable for these.</string>
 
+    <!-- Agents (PLAN §6.16) -->
+    <string name="agents_title">Agents</string>
+    <plurals name="agents_count">
+        <item quantity="one">%d agent</item>
+        <item quantity="other">%d agents</item>
+    </plurals>
+    <string name="agents_new">New agent</string>
+    <string name="agents_caption">Each agent has its own prompt, model, look and memory, and uses the tools, skills and databases you allow. Pick who you talk to with the chips on Home; channels and automations each choose their own agent.</string>
+    <string name="agents_for_new_chats">New chats</string>
+    <string name="agents_main_model">Main model</string>
+    <string name="agents_new_title">New agent</string>
+    <string name="agents_new_caption">Start from a template and change anything after, or start blank.</string>
+    <string name="agents_blank">Blank</string>
+    <string name="agents_blank_sub">The default prompt, every tool, skill and database</string>
+    <string name="agent_page_title">Agent</string>
+    <string name="agent_name">Name</string>
+    <string name="agent_group_setup">Look, model and prompt</string>
+    <string name="agent_look">Look</string>
+    <string name="agent_model">Model</string>
+    <string name="agent_model_sub_main">Main model</string>
+    <string name="agent_model_main_sub">The one first in Models</string>
+    <string name="agent_model_caption">The model this agent answers with. A chat can still switch models. If it can’t answer, your backup models in Models take over.</string>
+    <string name="agent_prompt">System prompt</string>
+    <string name="agent_prompt_default">Default</string>
+    <string name="agent_prompt_custom">Your own</string>
+    <string name="agent_prompt_explain">The system prompt is what %1$s reads before every chat: who it is, how it works and what it should never do. It applies to every model this agent uses. The app adds the date, About you, memory and skills around it.</string>
+    <string name="agent_prompt_placeholder">For example: You are a patient study companion for a university student. Explain one step at a time, ask a question back before giving the answer, and keep revision plans short and realistic.</string>
+    <string name="agent_prompt_reset">Use the default</string>
+    <string name="agent_about_you">About you</string>
+    <string name="agent_about_you_sub">Shared by every agent</string>
+    <string name="agent_about_you_hint">What every agent should know about you: your name, where you live, what you work on.</string>
+    <string name="agent_memory">Memory</string>
+    <string name="agent_memory_hint">What %1$s keeps from earlier chats. It adds to this itself; you can change or clear it. Each agent has its own.</string>
+    <string name="agent_memory_empty">Empty</string>
+    <plurals name="agent_memory_notes">
+        <item quantity="one">%d note</item>
+        <item quantity="other">%d notes</item>
+    </plurals>
+    <string name="agent_memory_clear">Clear memory</string>
+    <string name="agent_memory_clear_title">Clear %1$s’s memory?</string>
+    <string name="agent_memory_clear_text">%1$s forgets everything it kept from earlier chats. This can’t be undone.</string>
+    <string name="agent_tidy">Tidy memory nightly</string>
+    <string name="agent_tidy_sub">At 03:30 each agent’s memory is tidied from its own chats that day, on your cheapest model.</string>
+    <string name="agent_tools">Tools</string>
+    <string name="agent_tools_caption">Only tools that aren’t Off on the Tools page are listed. Whether a tool asks first is set there.</string>
+    <string name="agent_skills">Skills</string>
+    <string name="agent_skills_none">No skills are on. Turn some on in Skills.</string>
+    <string name="agent_databases">Databases</string>
+    <string name="agent_databases_caption">An agent can be given less than a database allows, never more. A database’s own access is set on its page.</string>
+    <string name="agent_db_off">Off</string>
+    <string name="agent_db_read">Read</string>
+    <string name="agent_db_write">Read and write</string>
+    <string name="agent_jobs">Automations</string>
+    <string name="agent_jobs_none">No automation runs as %1$s yet. Choose the agent when you make or edit one.</string>
+    <string name="agent_use_for_new">Use for new chats</string>
+    <string name="agent_duplicate">Duplicate</string>
+    <string name="agent_delete">Delete</string>
+    <string name="agent_delete_title">Delete %1$s?</string>
+    <string name="agent_delete_text">Its chats and automations move to %1$s, and its memory goes to the Trash. Its settings are deleted.</string>
+    <string name="agent_runs_as">Runs as</string>
+    <string name="agent_channel">Agent</string>
+
     <!-- Settings → Backup (PLAN §6.12) -->
     <string name="backup_section">Backup</string>
     <string name="backup_make">Make a backup</string>

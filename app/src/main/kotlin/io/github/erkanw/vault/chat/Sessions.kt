@@ -128,6 +128,8 @@ data class AutomationJob(
     val sessionKey: String = "",
     /** The model preset it runs with; empty: the main model. */
     val model: String = "",
+    /** The agent it runs as (PLAN §6.16); empty: Apel. */
+    val agent: String = "",
     /** A system job (Tidy memory): it can be turned off but not deleted or edited. */
     val builtIn: Boolean = false,
     /** Its latest runs, newest first. */

@@ -346,6 +346,23 @@ private fun Dashboard(s: UsageSummary, credits: OrSnapshot?, openRouter: Boolean
         }
     }
 
+    if (s.agents.size > 1) {
+        val (clockAgents, seenAgents) = rememberCardClock(430f)
+        Card("By agent", seenAgents.rise(clockAgents, 430f)) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                s.agents.forEachIndexed { i, a ->
+                    Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}.padding(vertical = 9.dp).rise(clockAgents, 460f + i * 50f, 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(a.label, color = k.text, style = VaultType.Preview, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("${a.messages} answer${if (a.messages == 1) "" else "s"}", color = k.muted, style = VaultType.Caption)
+                        }
+                        Text(usd(a.cost), color = k.text, style = VaultType.Preview, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
+    }
+
     if (s.sources.isNotEmpty()) {
         val (clockSources, seenSources) = rememberCardClock(440f)
         Card("By who asked", seenSources.rise(clockSources, 440f)) {

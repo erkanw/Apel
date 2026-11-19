@@ -43,6 +43,8 @@ object VaultIcons {
     val Clock by lazy { icon("Clock") { circle(12f, 12f, 10f); path("M12 6v6l4 2") } }
 
     /** Databases (Lucide database). */
+    /** Lucide bot: the Agents page. */
+    val Bot by lazy { icon("Bot") { path("M12 8V4H8"); path("M6 8h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z"); path("M2 14h2"); path("M20 14h2"); path("M15 13v2"); path("M9 13v2") } }
     val Database by lazy { icon("Database") { path("M3 5a9 3 0 1 0 18 0a9 3 0 1 0 -18 0"); path("M3 5v14a9 3 0 0 0 18 0V5"); path("M3 12a9 3 0 0 0 18 0") } }
 
     /** Settings. */

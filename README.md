@@ -5,7 +5,7 @@ tools, databases and memory live in the app. You connect your own AI provider (O
 OpenAI-compatible server) and pay it directly, only for what you use. There is no server, no account with the maker
 and no telemetry.
 
-> **Status: 0.1.0, the first release.** Everything below works on a test phone. Releases are signed APKs on GitHub;
+> **Status: 0.2.0 adds agents; 0.1.0 was the first release.** Everything below works on a test phone. Releases are signed APKs on GitHub;
 > F-Droid comes next. See [CHANGELOG.md](CHANGELOG.md).
 
 ## What it does
@@ -19,6 +19,9 @@ and no telemetry.
   tool is Allowed, Ask first or Off; risky actions wait for your OK.
 - **Files**: the agent's workspace, which you can browse, edit, import into and share from.
 - **Skills**: instructions the agent follows, in the Agent Skills layout (`SKILL.md`); create, edit, import, export.
+- **Agents**: several agents for different jobs (a study companion, a researcher, a training coach…), each with its own
+  name, look, model, system prompt and memory, and the tools, skills and databases you allow it. Start from a template
+  or blank; pick which one a chat, a channel or an automation uses.
 - **Automations**: scheduled jobs that run with the screen off and post their result to a channel.
 - **Databases**: SQLite databases the agent can read or write under rules you set, with a table browser, a SQL
   console, CSV import and export, and backups.

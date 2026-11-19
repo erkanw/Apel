@@ -78,6 +78,12 @@ fun VaultApp(
     var openedFrom by rememberSaveable { mutableStateOf(Screen.Settings.name) }
     // The provider page is opened from Settings or from Home's "Not connected" line: Back goes there.
     var providerFrom by rememberSaveable { mutableStateOf(Screen.Settings.name) }
+    // Which agent's page is open, and where it was opened from (Settings for Apel, or the Agents page).
+    var agentFor by rememberSaveable { mutableStateOf(io.github.erkanw.vault.agent.AgentPresets.APEL) }
+    var agentFrom by rememberSaveable { mutableStateOf(Screen.Settings.name) }
+    val agentsVm = androidx.lifecycle.viewmodel.compose.viewModel<io.github.erkanw.vault.AgentsViewModel>()
+    val selectedAgent = agentsVm.selected.collectAsStateWithLifecycle().value
+    val chatAgent = vm.chatAgent.collectAsStateWithLifecycle().value
     // The automation whose runs page is open.
     var runsFor by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -111,7 +117,8 @@ fun VaultApp(
         if (screen == Screen.Files && pages.folderUp()) return@BackHandler
         screenName = when (screen) {
             Screen.Usage, Screen.Models, Screen.Look -> openedFrom
-            Screen.Agent, Screen.About -> Screen.Settings.name
+            Screen.Agent -> agentFrom
+            Screen.About -> Screen.Settings.name
             Screen.AutomationRuns -> Screen.Automation.name
             Screen.Provider -> providerFrom
             else -> Screen.Home.name
@@ -145,6 +152,8 @@ fun VaultApp(
             Box(Modifier.fillMaxSize().background(k.background)) {
                 when (shown) {
                     Screen.Home -> {
+                    // Home speaks as the agent new chats start with (PLAN §6.16).
+                    AsAgent(agentsVm, selectedAgent) {
                         val shownSessions = remember(sessions, channelChats) { sessions.filter { it.chatId !in channelChats.values } }
                         val channelEntries = (Channel.builtIn + customChannels).map { channel ->
                             val bound = channelChats[channel.id]
@@ -229,7 +238,10 @@ fun VaultApp(
                             },
                         )
                     }
-                    Screen.Chat -> ChatScreen(vm, focusTick, onBack = back, onSettings = { screenName = Screen.Settings.name }, onModels = { go(Screen.Models) })
+                    }
+                    Screen.Chat -> AsAgent(agentsVm, chatAgent ?: selectedAgent) {
+                        ChatScreen(vm, focusTick, onBack = back, onSettings = { screenName = Screen.Settings.name }, onModels = { go(Screen.Models) })
+                    }
                     Screen.Skills -> SkillsScreen(pages, onBack = back, onRequestInNewChat = { request ->
                         vm.newSession()
                         vm.prefillDraft(request)
@@ -258,7 +270,7 @@ fun VaultApp(
                         onBack = back,
                         onUsage = { go(Screen.Usage) },
                         onModels = { go(Screen.Models) },
-                        onLook = { screenName = Screen.Agent.name },
+                        onLook = { agentFor = io.github.erkanw.vault.agent.AgentPresets.APEL; agentFrom = Screen.Settings.name; screenName = Screen.Agent.name },
                         onProvider = { providerFrom = Screen.Settings.name; screenName = Screen.Provider.name },
                         providerSummary = when (providerState.kind) {
                             io.github.erkanw.vault.provider.ProviderKind.OpenRouter -> "OpenRouter"
@@ -280,8 +292,15 @@ fun VaultApp(
                     Screen.Databases -> DatabasesScreen(androidx.lifecycle.viewmodel.compose.viewModel<io.github.erkanw.vault.DatabasesViewModel>(), onBack = back)
                     Screen.Models -> ModelsScreen(settings, onBack = { screenName = openedFrom }, onSettings = { screenName = Screen.Provider.name })
                     Screen.Provider -> ProviderScreen(provider, onBack = { screenName = providerFrom }, onModels = { go(Screen.Models) }, onUsage = { go(Screen.Usage) })
-                    Screen.Look -> LookScreen(onBack = { screenName = openedFrom })
-                    Screen.Agent -> AgentScreen(onBack = { screenName = Screen.Settings.name }, onLook = { go(Screen.Look) })
+                    Screen.Look -> {
+                        // Apel's look is the app's own; another agent's is read and saved through its row.
+                        val other = agentsVm.agents.collectAsStateWithLifecycle().value.firstOrNull { it.id == agentFor && !it.isApel }
+                        if (screenName == Screen.Look.name && openedFrom == Screen.Agent.name && other != null) {
+                            LookScreen(onBack = { screenName = openedFrom }, agentLook = other.look, agentName = other.name, onChoose = { agentsVm.setLook(other.id, it) })
+                        } else LookScreen(onBack = { screenName = openedFrom })
+                    }
+                    Screen.Agent -> AgentScreen(agentsVm, agentFor, onBack = { screenName = agentFrom }, onLook = { go(Screen.Look) })
+                    Screen.Agents -> AgentsScreen(agentsVm, onBack = back, onOpen = { id -> agentFor = id; agentFrom = Screen.Agents.name; screenName = Screen.Agent.name })
                     Screen.Onboarding -> OnboardingScreen(provider, onDone = {
                         vm.refreshComposerExtras()
                         screenName = Screen.Home.name

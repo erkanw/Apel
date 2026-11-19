@@ -62,6 +62,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
@@ -96,7 +99,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /** The places Home leads to. */
-enum class Screen { Home, Chat, Skills, Automation, AutomationRuns, Databases, Settings, Usage, Files, Models, Tools, Provider, Onboarding, Look, Agent, About }
+enum class Screen { Home, Chat, Skills, Automation, AutomationRuns, Databases, Settings, Usage, Files, Models, Tools, Provider, Onboarding, Look, Agent, About, Agents }
 
 /** The next automation to run, for its tile on Home. */
 data class NextRun(val name: String, val atMs: Long)
@@ -270,6 +273,30 @@ fun HomeScreen(
                     )
                 }
             }
+            }
+
+            // Which agent a new chat starts with (PLAN §6.16): a chip each, once there is more than one.
+            val agentsVm = androidx.lifecycle.viewmodel.compose.viewModel<io.github.erkanw.vault.AgentsViewModel>()
+            val agentList by agentsVm.agents.collectAsStateWithLifecycle()
+            val forNew by agentsVm.selected.collectAsStateWithLifecycle()
+            AnimatedVisibility(
+                visible = !keyboardUp && agentList.size > 1,
+                enter = fadeIn(tween(Motion.Short)) + expandVertically(Motion.settle()),
+                exit = fadeOut(tween(120)) + shrinkVertically(Motion.settle()),
+            ) {
+                androidx.compose.foundation.layout.FlowRow(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    agentList.forEach { a ->
+                        VaultChip(
+                            a.name, { agentsVm.select(a.id) },
+                            Modifier.semantics { contentDescription = "Talk to ${a.name}" },
+                            selected = (forNew ?: io.github.erkanw.vault.agent.AgentPresets.APEL) == a.id,
+                            leading = { AgentMark(a.look, size = 18.dp) },
+                        )
+                    }
+                }
             }
 
             // A few suggestions: the channels, the latest chat, the next automation. They step aside while typing.
@@ -479,6 +506,7 @@ private fun HomeDrawer(
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 20.dp)) {
             if (!searching) {
                 item(key = "new") { ToolRow(VaultIcons.SquarePen, "New chat", onNewSession) }
+                item(key = "agents") { ToolRow(VaultIcons.Bot, "Agents") { onNavigate(Screen.Agents) } }
                 item(key = "files") { ToolRow(VaultIcons.Folder, "Files") { onNavigate(Screen.Files) } }
                 item(key = "skills") { ToolRow(VaultIcons.Sparkles, "Skills") { onNavigate(Screen.Skills) } }
                 item(key = "auto") { ToolRow(VaultIcons.Clock, "Automations") { onNavigate(Screen.Automation) } }
@@ -736,12 +764,18 @@ fun ChannelDialog(
     var title by remember { mutableStateOf(look.title) }
     var blurb by remember { mutableStateOf(look.blurb) }
     var color by remember { mutableIntStateOf(look.color) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var agent by remember { mutableStateOf(io.github.erkanw.vault.store.Agents.ofChannel(context, channel.id)) }
     val shown = cleanLook(channel, title, blurb, color)
     ChannelForm(
         heading = shown.title, color = color, title = title, blurb = blurb,
         onTitle = { title = it }, onBlurb = { blurb = it }, onColor = { color = it },
         onDelete = onDelete,
-        confirm = { QuietButton("Save", { onSave(shown) }) },
+        agent = agent, onAgent = { agent = it },
+        confirm = { QuietButton("Save", {
+            io.github.erkanw.vault.store.Agents.setChannel(context, channel.id, agent ?: io.github.erkanw.vault.agent.AgentPresets.APEL)
+            onSave(shown)
+        }) },
         dismiss = {
             Row {
                 // A channel you made has nothing to go back to; Delete is its other action.
@@ -788,6 +822,9 @@ private fun ChannelForm(
     confirm: @Composable () -> Unit,
     dismiss: @Composable () -> Unit,
     onDismiss: () -> Unit,
+    /** The agent this channel talks to (PLAN §6.16), shown once there is more than one agent. */
+    agent: String? = null,
+    onAgent: ((String) -> Unit)? = null,
 ) {
     val k = MaterialTheme.vault
     androidx.compose.material3.AlertDialog(
@@ -809,6 +846,18 @@ private fun ChannelForm(
                 Text("The description is also what the empty chat says.", style = VaultType.Caption, color = k.muted)
                 Text("Colour", style = VaultType.Label, color = k.muted, modifier = Modifier.padding(top = 10.dp))
                 ColorClouds(color, onColor)
+                if (onAgent != null) {
+                    val agentsVm = androidx.lifecycle.viewmodel.compose.viewModel<io.github.erkanw.vault.AgentsViewModel>()
+                    val agentList by agentsVm.agents.collectAsStateWithLifecycle()
+                    if (agentList.size > 1) {
+                        Text(androidx.compose.ui.res.stringResource(io.github.erkanw.vault.R.string.agent_channel), style = VaultType.Label, color = k.muted, modifier = Modifier.padding(top = 10.dp))
+                        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            agentList.forEach { a ->
+                                VaultChip(a.name, { onAgent(a.id) }, selected = (agent ?: io.github.erkanw.vault.agent.AgentPresets.APEL) == a.id, leading = { AgentMark(a.look, size = 18.dp) })
+                            }
+                        }
+                    }
+                }
                 if (onDelete != null) {
                     QuietButton("Delete channel", onDelete, color = k.danger, modifier = Modifier.padding(top = 4.dp).offset(x = (-12).dp))
                 }

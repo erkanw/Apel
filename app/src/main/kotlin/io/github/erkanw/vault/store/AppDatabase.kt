@@ -39,6 +39,8 @@ data class SessionEntity(
     val summary: String? = null,
     /** For a fork: how many messages were copied from the session it came from. */
     @ColumnInfo(name = "fork_boundary") val forkBoundary: Int? = null,
+    /** The agent this chat talks to (PLAN §6.16); null: Apel, the first agent. */
+    @ColumnInfo(name = "agent_id") val agentId: String? = null,
 )
 
 @Entity(
@@ -184,6 +186,8 @@ data class UsageEntity(
     val ok: Boolean,
     /** Calls to the model this answer took (one per tool round); OpenRouter counts each, free models' daily limit too. */
     @ColumnInfo(defaultValue = "1") val requests: Int = 1,
+    /** The agent that answered; null: Apel (and every answer before Phase 10). */
+    @ColumnInfo(name = "agent_id") val agentId: String? = null,
 )
 
 @Dao
@@ -225,6 +229,8 @@ data class AutomationEntity(
     @ColumnInfo(name = "last_error") val lastError: String = "",
     val builtin: String? = null,
     val created: Long,
+    /** The agent it runs as; null: Apel. */
+    @ColumnInfo(name = "agent_id") val agentId: String? = null,
 )
 
 /** One run of an automation (PLAN §5 `automation_runs`): when, how it went, and where its answer is. */
@@ -358,6 +364,55 @@ data class McpServerEntity(
     val created: Long,
 )
 
+/**
+ * An agent (PLAN §6.16): a preset of model, system prompt, tools, skills and database access, with its own name, look
+ * and memory. Apel is the row `apel`; its name and look stay in AgentProfile and LookStore (the app's own identity).
+ * Lists are JSON: what is switched off (everything is on by default), and per-database caps (a missing name: no cap).
+ */
+@Entity(tableName = "agents")
+data class AgentEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    /** The mascot's look as a Studio hash; "" is the default look. */
+    val look: String = "",
+    /** A model preset's name; null: the main model and its fallbacks. */
+    val model: String? = null,
+    /** The system prompt; null: the default prompt. */
+    val prompt: String? = null,
+    @ColumnInfo(name = "tools_off") val toolsOff: String = "[]",
+    @ColumnInfo(name = "skills_off") val skillsOff: String = "[]",
+    @ColumnInfo(name = "db_caps") val dbCaps: String = "{}",
+    /** The template it was made from, or "". */
+    val template: String = "",
+    val position: Int = 0,
+    val created: Long,
+)
+
+@Dao
+interface AgentDao {
+    @Query("SELECT * FROM agents ORDER BY position, created")
+    suspend fun all(): List<AgentEntity>
+
+    @Query("SELECT * FROM agents WHERE id = :id")
+    suspend fun get(id: String): AgentEntity?
+
+    @Insert
+    suspend fun insert(a: AgentEntity)
+
+    @Update
+    suspend fun update(a: AgentEntity)
+
+    @Query("DELETE FROM agents WHERE id = :id")
+    suspend fun delete(id: String)
+
+    /** A deleted agent's chats and jobs go to Apel. */
+    @Query("UPDATE sessions SET agent_id = NULL WHERE agent_id = :id")
+    suspend fun moveSessionsToApel(id: String)
+
+    @Query("UPDATE automations SET agent_id = NULL WHERE agent_id = :id")
+    suspend fun moveAutomationsToApel(id: String)
+}
+
 @Dao
 interface McpDao {
     @Query("SELECT * FROM mcp_servers ORDER BY created")
@@ -379,9 +434,9 @@ interface McpDao {
 @Database(
     entities = [SessionEntity::class, MessageEntity::class, AttachmentEntity::class, StepEntity::class, UsageEntity::class,
         AutomationEntity::class, AutomationRunEntity::class, UserDbEntity::class, DbAuditEntity::class,
-        McpServerEntity::class,
+        McpServerEntity::class, AgentEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -390,6 +445,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun automations(): AutomationDao
     abstract fun userDbs(): UserDbDao
     abstract fun mcp(): McpDao
+    abstract fun agents(): AgentDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -402,6 +458,20 @@ abstract class AppDatabase : RoomDatabase() {
             instance?.close()
             instance = null
             block()
+        }
+
+        /** Phase 10: agents, and which agent each chat, job and answer belongs to. */
+        val MIGRATION_7_8 = object : androidx.room.migration.Migration(7, 8) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `agents` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `look` TEXT NOT NULL, `model` TEXT, " +
+                        "`prompt` TEXT, `tools_off` TEXT NOT NULL, `skills_off` TEXT NOT NULL, `db_caps` TEXT NOT NULL, " +
+                        "`template` TEXT NOT NULL, `position` INTEGER NOT NULL, `created` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+                )
+                db.execSQL("ALTER TABLE `sessions` ADD COLUMN `agent_id` TEXT")
+                db.execSQL("ALTER TABLE `automations` ADD COLUMN `agent_id` TEXT")
+                db.execSQL("ALTER TABLE `usage` ADD COLUMN `agent_id` TEXT")
+            }
         }
 
         /** Phase 8: tool servers. */
@@ -475,7 +545,7 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
-            instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "app.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7).build().also { instance = it }
+            instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "app.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8).build().also { instance = it }
         }
     }
 }

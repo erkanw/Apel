@@ -27,13 +27,19 @@ data class TurnInput(
     val channelNote: String? = null,
     /** Set when an automation runs this turn (PLAN §7.1 `source = Automation`). */
     val automation: AutomationTurn? = null,
+    /** The agent a new chat talks to (an existing chat keeps its own); null: Apel. */
+    val agentId: String? = null,
 )
 
 /**
  * A scheduled run: which automation, the model it runs with (a preset; null: the chat's or the main model), and the name
  * a new chat for it gets. Its instruction is kept as a hidden message: the chat shows only what the agent posted.
  */
-data class AutomationTurn(val id: String, val name: String, val model: String?, val title: String)
+data class AutomationTurn(
+    val id: String, val name: String, val model: String?, val title: String,
+    /** The agent the job runs as (PLAN §6.16), even in a channel that uses another; null: Apel. */
+    val agentId: String? = null,
+)
 
 /**
  * Everything the screens ask of the agent (PLAN §5, "the migration trick"). Phase 0 has two: a demo one in debug builds
@@ -41,6 +47,9 @@ data class AutomationTurn(val id: String, val name: String, val model: String?, 
  * shown as it is.
  */
 interface AgentBackend {
+    /** The agent a chat talks to (PLAN §6.16); null: Apel. */
+    suspend fun sessionAgent(chatId: String): String? = null
+
     /** False while no provider is connected: pages say so instead of loading. */
     val connected: Boolean
 

@@ -67,7 +67,7 @@ object Automations {
             nextRunMs = if (a.enabled) a.nextRun else 0L, lastRunMs = a.lastRun, lastStatus = a.lastStatus, lastError = a.lastError,
             pending = running, message = a.message, channel = a.channelId.orEmpty(),
             scheduleKind = s.kind, cronExpr = s.expr, tz = s.tz, everyMs = s.everyMs, atMs = s.atMs,
-            model = a.model.orEmpty(), builtIn = a.builtin != null, runs = runs, exact = exact,
+            model = a.model.orEmpty(), agent = a.agentId.orEmpty(), builtIn = a.builtin != null, runs = runs, exact = exact,
         )
     }
 
@@ -89,6 +89,7 @@ object Automations {
                 id = id, name = name, message = message, kind = schedule.kind, expr = schedule.expr, tz = schedule.tz,
                 everyMs = schedule.everyMs, atMs = schedule.atMs, enabled = true,
                 channelId = values.optString("channel").trim().ifEmpty { null }, model = values.optString("model").trim().ifEmpty { null },
+                agentId = values.optString("agent").trim().ifEmpty { null }?.takeIf { it != io.github.erkanw.vault.agent.AgentPresets.APEL },
                 nextRun = schedule.next(now, anchor = 0L) ?: 0L, created = now,
             ),
         )
@@ -108,6 +109,7 @@ object Automations {
             if (values.has("channel")) next = next.copy(channelId = values.optString("channel").trim().ifEmpty { null })
         }
         if (values.has("model")) next = next.copy(model = values.optString("model").trim().ifEmpty { null })
+        if (values.has("agent")) next = next.copy(agentId = values.optString("agent").trim().ifEmpty { null }?.takeIf { it != io.github.erkanw.vault.agent.AgentPresets.APEL })
         values.optJSONObject("schedule")?.let { o ->
             val s = Schedule.fromJson(o) ?: throw ChatException("Choose when it runs.")
             if (s != a.schedule()) {

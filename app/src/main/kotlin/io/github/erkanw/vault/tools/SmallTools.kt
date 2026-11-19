@@ -26,11 +26,21 @@ object MemoryTools {
     const val PROMPT_CHARS = 16_000
     private const val MAX_CHARS = 64_000
 
+    /** Apel's memory (the one it always had). */
     fun file(context: Context) = File(Workspace.root(context), "memory/MEMORY.md")
 
+    /** [agent]'s memory: each agent keeps its own (PLAN §6.16). */
+    fun file(context: Context, agent: io.github.erkanw.vault.agent.AgentScope) = File(Workspace.root(context), agent.memoryPath)
+
+    /** An agent's memory by id, for the agent page. */
+    fun file(context: Context, agentId: String) = File(
+        Workspace.root(context),
+        io.github.erkanw.vault.agent.AgentScope(agentId, "", "").memoryPath,
+    )
+
     /** The memory as the system prompt carries it, or "" when there is none yet. */
-    fun forPrompt(context: Context): String {
-        val f = file(context)
+    fun forPrompt(context: Context, agent: io.github.erkanw.vault.agent.AgentScope? = null): String {
+        val f = if (agent == null) file(context) else file(context, agent)
         if (!f.isFile) return ""
         val text = f.readText().trim()
         return if (text.length <= PROMPT_CHARS) text else text.take(PROMPT_CHARS) + "\n…(memory continues; use memory_read for the rest)"
@@ -40,13 +50,13 @@ object MemoryTools {
         override val name = "memory_read"
         override val title = "Read memory"
         override val description = "Reads what the agent keeps in memory."
-        override val instructions = "Read your whole memory file (memory/MEMORY.md). Its start is already in your instructions."
+        override val instructions = "Read your whole memory file. Its start is already in your instructions."
         override val schema = params()
         override val defaultLevel = ToolLevel.Allowed
         override fun hint(args: JSONObject) = "Remembering"
         override fun step(args: JSONObject) = "memory_read"
         override suspend fun run(args: JSONObject, ctx: ToolContext): String =
-            file(ctx.app).takeIf { it.isFile }?.readText()?.ifBlank { null } ?: "(memory is empty)"
+            file(ctx.app, ctx.agent).takeIf { it.isFile }?.readText()?.ifBlank { null } ?: "(memory is empty)"
     }
 
     object Write : Tool {
@@ -71,7 +81,7 @@ object MemoryTools {
             val section = args.need("section").replace("\n", " ").trim().trimStart('#', ' ')
             val text = args.optString("text").trim()
             val replace = args.optString("mode") == "replace"
-            val f = file(ctx.app)
+            val f = file(ctx.app, ctx.agent)
             f.parentFile?.mkdirs()
             val updated = withSection(if (f.isFile) f.readText() else "# Memory\n", section, text, replace)
             if (updated.length > MAX_CHARS) throw ToolException("Memory is full (64,000 characters). Replace a section with a shorter summary first.")

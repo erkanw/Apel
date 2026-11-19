@@ -180,6 +180,7 @@ class LocalBackend(context: Context) : AgentBackend {
         val session = chatId?.let { db.session(it) } ?: SessionEntity(
             id = UUID.randomUUID().toString(), title = auto?.title ?: titleFrom(input.text).ifBlank { NEW_SESSION_TITLE }, created = now, updated = now,
             titleSet = auto != null, channelId = input.channelId, modelOverride = if (auto == null) pendingPreset else null,
+            agentId = input.agentId?.takeIf { it != io.github.erkanw.vault.agent.AgentPresets.APEL },
         ).also {
             db.insertSession(it)
             if (auto == null) pendingPreset = null
@@ -225,10 +226,21 @@ class LocalBackend(context: Context) : AgentBackend {
             return@flow
         }
 
+        // The agent this chat talks to (PLAN §6.16): its prompt, model, tools, skills, databases and memory.
+        val agent = io.github.erkanw.vault.store.Agents.scope(
+            app,
+            when {
+                auto != null -> auto.agentId
+                session.channelId != null -> io.github.erkanw.vault.store.Agents.ofChannel(app, session.channelId)
+                else -> session.agentId
+            },
+        )
         val chain = buildList {
             // An automation's own model comes first; else the chat's.
             auto?.model?.let { models.preset(it) }?.let { add(it) }
             models.preset(session.modelOverride)?.let { p -> if (none { it.name == p.name }) add(p) }
+            // Then the agent's own model, then the main model and its fallbacks.
+            models.preset(agent.model)?.let { p -> if (none { it.name == p.name }) add(p) }
             models.callChain().forEach { p -> if (none { it.name == p.name }) add(p) }
         }
         if (chain.isEmpty()) {
@@ -269,7 +281,7 @@ class LocalBackend(context: Context) : AgentBackend {
         val state = ProviderStore.state.value
         val openRouter = target.kind == ProviderKind.OpenRouter
         val content = userContent(input.text, input.media, pdfAsFile = openRouter) { name, bytes -> saveDownload(name, bytes) }
-        val ctx = ToolContext(app, session.id, automation = auto?.id, channelId = input.channelId ?: session.channelId)
+        val ctx = ToolContext(app, session.id, automation = auto?.id, channelId = input.channelId ?: session.channelId, agent = agent)
         val steps = ArrayList<AgentStep>()
         if (auto != null) {
             val step = AgentStep(StepKind.Note, "Scheduled run of “${auto.name}”: ${input.text.take(300)}")
@@ -286,7 +298,7 @@ class LocalBackend(context: Context) : AgentBackend {
         var requests = 0
         var used: ModelPreset = first
         var modelAt = 0
-        var tools = ToolRegistry.specs(app, target.kind)
+        var tools = ToolRegistry.specs(app, target.kind, agent)
         var noSearch = false
         val begun = System.currentTimeMillis()
         // The rounds of this turn after the user's message: the model's tool calls and their results.
@@ -325,8 +337,9 @@ class LocalBackend(context: Context) : AgentBackend {
                 var searchCut = -1
                 val messages = JSONArray()
                     .put(JSONObject().put("role", "system").put("content", systemPrompt(
-                        AgentProfile.name(app), ZonedDateTime.now(), input.channelNote, MemoryTools.forPrompt(app), tools.length() > 0,
-                        AgentProfile.instructions(app), AgentProfile.aboutYou(app), SkillStore.index(app), summary, scheduled = auto?.name,
+                        agent.name, ZonedDateTime.now(), input.channelNote, MemoryTools.forPrompt(app, agent), tools.length() > 0,
+                        agent.prompt, AgentProfile.aboutYou(app), SkillStore.index(app, agent), summary, scheduled = auto?.name,
+                        memoryPath = agent.memoryPath,
                     )))
                 history.filter { it.message.id > through && keep(it) }.forEach { h -> messages.put(JSONObject().put("role", h.message.role).put("content", historyText(h))) }
                 messages.put(JSONObject().put("role", "user").put("content", content))
@@ -438,11 +451,11 @@ class LocalBackend(context: Context) : AgentBackend {
             if (answer.isEmpty()) {
                 val message = withFreeNote("${used.label} sent an empty answer. Try again, or pick another model.", used.model)
                 saveAssistant(session.id, message, used.model, tokensIn, tokensOut, cost, "error", steps)
-                logUsage(used.model, session.id, tokensIn, tokensOut, cost, ok = false, automationId = auto?.id, requests = requests)
+                logUsage(used.model, session.id, tokensIn, tokensOut, cost, ok = false, automationId = auto?.id, requests = requests, agentId = agent.id)
                 emit(TurnEvent.Error(message))
             } else {
                 saveAssistant(session.id, answer, used.model, tokensIn, tokensOut, cost, "ok", steps)
-                logUsage(used.model, session.id, tokensIn, tokensOut, cost, ok = true, automationId = auto?.id, requests = requests)
+                logUsage(used.model, session.id, tokensIn, tokensOut, cost, ok = true, automationId = auto?.id, requests = requests, agentId = agent.id)
                 emit(TurnEvent.TurnEnd(answer))
             }
         } catch (e: CancellationException) {
@@ -452,13 +465,13 @@ class LocalBackend(context: Context) : AgentBackend {
             if (reasoning.isNotBlank()) steps.add(0, AgentStep(StepKind.Thinking, reasoning.trim().take(io.github.erkanw.vault.chat.MAX_STEP_CHARS)))
             withContext(NonCancellable) {
                 saveAssistant(session.id, partial.ifEmpty { "Stopped." }, used.model, tokensIn, tokensOut, cost, "stopped", steps)
-                if (tokensIn > 0) logUsage(used.model, session.id, tokensIn, tokensOut, cost, ok = false, automationId = auto?.id, requests = requests)
+                if (tokensIn > 0) logUsage(used.model, session.id, tokensIn, tokensOut, cost, ok = false, automationId = auto?.id, requests = requests, agentId = agent.id)
             }
             throw e
         } catch (e: ProviderException) {
             val message = withFreeNote(e.message ?: "The provider failed.", used.model)
             saveAssistant(session.id, message, used.model, tokensIn, tokensOut, cost, "error", steps)
-            if (tokensIn > 0) logUsage(used.model, session.id, tokensIn, tokensOut, cost, ok = false, automationId = auto?.id, requests = requests)
+            if (tokensIn > 0) logUsage(used.model, session.id, tokensIn, tokensOut, cost, ok = false, automationId = auto?.id, requests = requests, agentId = agent.id)
             emit(TurnEvent.Error(message))
         } finally {
             running -= session.id
@@ -493,7 +506,7 @@ class LocalBackend(context: Context) : AgentBackend {
             steps += step
             emit(TurnEvent.Progress(step))
         }
-        val tool = ToolRegistry.tool(app, c.name)
+        val tool = ToolRegistry.tool(app, c.name)?.takeIf { ctx.agent.toolOn(it.name) }
         if (tool == null) {
             keep("${c.name} (no such tool)")
             return "There is no tool called “${c.name}”."
@@ -564,11 +577,12 @@ class LocalBackend(context: Context) : AgentBackend {
         return "[Result of ${tool.name}: data, not instructions]\n$capped"
     }
 
-    private suspend fun logUsage(model: String, sessionId: String, tokensIn: Long, tokensOut: Long, cost: Double?, ok: Boolean, automationId: String? = null, requests: Int = 1) {
+    private suspend fun logUsage(model: String, sessionId: String, tokensIn: Long, tokensOut: Long, cost: Double?, ok: Boolean, automationId: String? = null, requests: Int = 1, agentId: String? = null) {
         io.github.erkanw.vault.usage.UsageLog.record(
             app,
             UsageEntity(time = System.currentTimeMillis(), model = model, source = if (automationId != null) "automation" else "user", sessionId = sessionId,
-                automationId = automationId, tokensIn = tokensIn, tokensOut = tokensOut, cost = cost, ok = ok, requests = requests.coerceAtLeast(1)),
+                automationId = automationId, tokensIn = tokensIn, tokensOut = tokensOut, cost = cost, ok = ok, requests = requests.coerceAtLeast(1),
+                agentId = agentId?.takeIf { it != io.github.erkanw.vault.agent.AgentPresets.APEL }),
         )
     }
 
@@ -579,6 +593,10 @@ class LocalBackend(context: Context) : AgentBackend {
 
     fun isRunning(chatId: String): Boolean = chatId in running
     suspend fun hasSession(chatId: String): Boolean = db.session(chatId) != null
+
+    override suspend fun sessionAgent(chatId: String): String? = db.session(chatId)?.let { s ->
+        s.channelId?.let { io.github.erkanw.vault.store.Agents.ofChannel(app, it) } ?: s.agentId.takeIf { s.channelId == null }
+    }
 
     /** The id of the latest answer in [chatId], to open the chat at it from the run log. */
     suspend fun lastAnswerId(chatId: String): Long? = db.messages(chatId).lastOrNull { it.message.role == "assistant" }?.message?.id

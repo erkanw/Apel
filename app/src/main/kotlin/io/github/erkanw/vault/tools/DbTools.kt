@@ -16,9 +16,13 @@ object DbTools {
 
     private inline fun <T> guard(block: () -> T): T = try { block() } catch (e: DbException) { throw ToolException(e.message ?: "That didn’t work.") }
 
+    /** The databases this agent may see, with the access it has there (PLAN §6.16: the agent can only narrow it). */
+    private fun forAgent(ctx: ToolContext) =
+        core(ctx).agentVisible().map { it.copy(access = ctx.agent.access(it.name, it.access)) }.filter { it.access != Access.None }
+
     /** The database [name] as the agent may see it, or a sentence the model can act on. */
     private fun visible(ctx: ToolContext, name: String) =
-        core(ctx).agentVisible().firstOrNull { it.name == name } ?: throw ToolException("No database “$name” is available. Call db_list to see them.")
+        forAgent(ctx).firstOrNull { it.name == name } ?: throw ToolException("No database “$name” is available. Call db_list to see them.")
 
     private fun params(args: JSONObject): List<Any?> {
         val a = args.optJSONArray("params") ?: return emptyList()
@@ -50,7 +54,7 @@ object DbTools {
         override fun hint(args: JSONObject) = "Checking the databases"
         override fun step(args: JSONObject) = "db_list"
         override suspend fun run(args: JSONObject, ctx: ToolContext): String {
-            val dbs = core(ctx).agentVisible()
+            val dbs = forAgent(ctx)
             if (dbs.isEmpty()) return "No databases are open to you. The user can make one and set its access in the app (Databases)."
             return dbs.joinToString("\n") { d ->
                 "- ${d.name}: ${d.description.ifBlank { "(no description)" }} · access ${if (d.access == Access.ReadWrite) "read and write" else "read only"}" +
@@ -114,7 +118,7 @@ object DbTools {
         override fun step(args: JSONObject) = "db_execute ${args.optString("database")}: ${args.optString("sql").take(200)}"
         override fun precheck(args: JSONObject, ctx: ToolContext): String? {
             val name = args.optString("database")
-            val db = core(ctx).agentVisible().firstOrNull { it.name == name } ?: return "No database “$name” is available. Call db_list to see them."
+            val db = forAgent(ctx).firstOrNull { it.name == name } ?: return "No database “$name” is available. Call db_list to see them."
             return if (db.access != Access.ReadWrite) "“$name” is read only for you. The user can change that in the app." else null
         }
 

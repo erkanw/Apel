@@ -42,9 +42,11 @@ object ToolRegistry {
     fun searchAvailable(kind: ProviderKind) = kind == ProviderKind.OpenRouter
 
     /** The tools array for a request: every tool that isn't Off, and OpenRouter's web search when it is on. */
-    fun specs(context: Context, kind: ProviderKind): JSONArray = JSONArray().apply {
+    fun specs(context: Context, kind: ProviderKind, agent: io.github.erkanw.vault.agent.AgentScope? = null): JSONArray = JSONArray().apply {
         for (t in tools) {
             if (level(context, t.name) == ToolLevel.Off) continue
+            // Switched off for this agent (PLAN §6.16): not offered at all.
+            if (agent != null && !agent.toolOn(t.name)) continue
             put(
                 JSONObject().put("type", "function").put(
                     "function",
@@ -55,6 +57,7 @@ object ToolRegistry {
         // The tool servers' tools that are switched on (a server's own switches are on the Tools page).
         for (t in McpStore.agentTools(context)) {
             if (level(context, t.name) == ToolLevel.Off) continue
+            if (agent != null && !agent.toolOn(t.name)) continue
             put(
                 JSONObject().put("type", "function").put(
                     "function",
