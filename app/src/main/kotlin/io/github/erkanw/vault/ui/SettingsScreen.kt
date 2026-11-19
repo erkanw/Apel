@@ -224,20 +224,6 @@ fun SettingsScreen(
                     checked = hapticsEnabled,
                     onChange = vm::setHapticsEnabled,
                 )
-                RowDivider()
-                ActionRow(
-                    title = "Try the vibrations",
-                    subtitle = "Plays them in turn: single, double, heavy. Feel nothing? Check Settings > Sounds and vibration > Vibration intensity on your phone.",
-                    enabled = hapticsEnabled,
-                ) {
-                    scope.launch {
-                        Haptics.tap(view)
-                        delay(800)
-                        Haptics.confirm(view)
-                        delay(800)
-                        Haptics.reject(view)
-                    }
-                }
             }
 
             Section(stringResource(R.string.backup_section)) {

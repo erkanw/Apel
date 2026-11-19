@@ -86,6 +86,13 @@ class LocalBackend(context: Context) : AgentBackend {
 
     override val connected: Boolean get() = ProviderStore.state.value.connected
 
+    /**
+     * A failed answer from a free model: one note on why free models fail more often, and what tends not to work on
+     * them. Shown once, under the error.
+     */
+    private fun withFreeNote(message: String, model: String): String =
+        if (io.github.erkanw.vault.usage.UsageStats.isFree(model)) message + "\n\n" + app.getString(R.string.free_model_note) else message
+
     private fun notConnected(): Nothing = throw ChatException(app.getString(R.string.not_connected))
 
     // ---- sessions ----
@@ -429,7 +436,7 @@ class LocalBackend(context: Context) : AgentBackend {
             if (reasoning.isNotBlank()) steps.add(0, AgentStep(StepKind.Thinking, reasoning.trim().take(io.github.erkanw.vault.chat.MAX_STEP_CHARS)))
             val answer = shown.trim()
             if (answer.isEmpty()) {
-                val message = "${used.label} sent an empty answer. Try again, or pick another model."
+                val message = withFreeNote("${used.label} sent an empty answer. Try again, or pick another model.", used.model)
                 saveAssistant(session.id, message, used.model, tokensIn, tokensOut, cost, "error", steps)
                 logUsage(used.model, session.id, tokensIn, tokensOut, cost, ok = false, automationId = auto?.id, requests = requests)
                 emit(TurnEvent.Error(message))
@@ -449,7 +456,7 @@ class LocalBackend(context: Context) : AgentBackend {
             }
             throw e
         } catch (e: ProviderException) {
-            val message = e.message ?: "The provider failed."
+            val message = withFreeNote(e.message ?: "The provider failed.", used.model)
             saveAssistant(session.id, message, used.model, tokensIn, tokensOut, cost, "error", steps)
             if (tokensIn > 0) logUsage(used.model, session.id, tokensIn, tokensOut, cost, ok = false, automationId = auto?.id, requests = requests)
             emit(TurnEvent.Error(message))

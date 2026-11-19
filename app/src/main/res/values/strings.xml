@@ -29,6 +29,9 @@
     <string name="channel_budget">Budget</string>
     <string name="channel_budget_description">When 80% of the month’s budget is spent, and when it is used up.</string>
 
+    <!-- Under a failed answer from a free model (once). -->
+    <string name="free_model_note">Note: free models are often rate-limited by their providers and can stop partway. Longer tasks that take several steps, such as reading and writing databases, browsing or in-depth research, may not complete on a free model. A paid model is more reliable for these.</string>
+
     <!-- Settings → Backup (PLAN §6.12) -->
     <string name="backup_section">Backup</string>
     <string name="backup_make">Make a backup</string>
