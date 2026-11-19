@@ -11,6 +11,10 @@ captures/
 
 # Kotlin compiler session files
 .kotlin/
+# The design tool's working notes and brief, and porting notes (the design system is DESIGN.md): local only
+.impeccable/
+PRODUCT.md
+design/mascot-notes.md
 # Design review captures (screenshots, recordings): kept locally, too heavy for git
 .impeccable/review/
 # Third-party reference screenshots: local only, not ours to publish

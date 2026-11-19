@@ -125,7 +125,7 @@ app/src/debug/                 demo mode (DemoBackend), galleries
 fastlane/metadata/android/     the F-Droid listing (descriptions, changelogs, screenshots)
 ```
 
-The design system is in [DESIGN.md](DESIGN.md); the product brief is in [PRODUCT.md](PRODUCT.md). The code’s package
+The design system is in [DESIGN.md](DESIGN.md). The code’s package
 is `io.github.erkanw.vault`, after the project’s working name.
 
 </details>
