@@ -76,7 +76,7 @@ private val LICENCES = listOf(
  * own Back.
  */
 @Composable
-fun AboutScreen(onBack: () -> Unit, onWelcome: () -> Unit) {
+fun AboutScreen(onBack: () -> Unit, onWelcome: () -> Unit, onTour: () -> Unit = {}) {
     var page by rememberSaveable { mutableStateOf("main") }
     BackHandler(enabled = page != "main") { page = if (page.startsWith("licence:")) "licences" else "main" }
     AnimatedContent(page, transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) }, label = "about") { p ->
@@ -85,13 +85,13 @@ fun AboutScreen(onBack: () -> Unit, onWelcome: () -> Unit) {
             p == "licences" -> LicencesPage(onBack = { page = "main" }, onOpen = { page = "licence:$it" })
             p.startsWith("licence:") -> LICENCES.firstOrNull { it.id == p.removePrefix("licence:") }
                 ?.let { LicenceTextPage(it, onBack = { page = "licences" }) }
-            else -> AboutMain(onBack, onWelcome, onPrivacy = { page = "privacy" }, onLicences = { page = "licences" })
+            else -> AboutMain(onBack, onWelcome, onTour, onPrivacy = { page = "privacy" }, onLicences = { page = "licences" })
         }
     }
 }
 
 @Composable
-private fun AboutMain(onBack: () -> Unit, onWelcome: () -> Unit, onPrivacy: () -> Unit, onLicences: () -> Unit) {
+private fun AboutMain(onBack: () -> Unit, onWelcome: () -> Unit, onTour: () -> Unit, onPrivacy: () -> Unit, onLicences: () -> Unit) {
     val k = MaterialTheme.vault
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -135,6 +135,8 @@ private fun AboutMain(onBack: () -> Unit, onWelcome: () -> Unit, onPrivacy: () -
                 }
                 Column {
                     VaultGroup {
+                        GroupActionRow(stringResource(R.string.about_tour), stringResource(R.string.about_tour_sub), onTour)
+                        GroupDivider()
                         GroupActionRow(stringResource(R.string.about_welcome), stringResource(R.string.about_welcome_sub), onWelcome)
                         GroupDivider()
                         GroupActionRow(stringResource(R.string.about_diagnostics), stringResource(R.string.about_diagnostics_sub), {

@@ -84,6 +84,10 @@ fun VaultApp(
     val agentsVm = androidx.lifecycle.viewmodel.compose.viewModel<io.github.erkanw.vault.AgentsViewModel>()
     val selectedAgent = agentsVm.selected.collectAsStateWithLifecycle().value
     val chatAgent = vm.chatAgent.collectAsStateWithLifecycle().value
+    // Automations, Skills and Tools: Back goes to Agent settings when opened from there, else Home (a Home tile).
+    var groupFrom by rememberSaveable { mutableStateOf(Screen.Home.name) }
+    // The walkthrough: after it, Home (after the welcome) or About (shown again from there).
+    var tourFrom by rememberSaveable { mutableStateOf(Screen.Home.name) }
     // The automation whose runs page is open.
     var runsFor by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -119,14 +123,17 @@ fun VaultApp(
             Screen.Usage, Screen.Models, Screen.Look -> openedFrom
             Screen.Agent -> agentFrom
             Screen.About -> Screen.Settings.name
+            Screen.Tour -> tourFrom
             Screen.AutomationRuns -> Screen.Automation.name
             Screen.Provider -> providerFrom
+            Screen.Skills, Screen.Automation, Screen.Tools -> groupFrom
             else -> Screen.Home.name
         }
     }
 
     fun go(target: Screen) {
         if (target == Screen.Models || target == Screen.Usage || target == Screen.Look) openedFrom = screen.name
+        if (target == Screen.Skills || target == Screen.Automation || target == Screen.Tools) groupFrom = screen.name
         screenName = target.name
     }
 
@@ -242,7 +249,7 @@ fun VaultApp(
                     Screen.Chat -> AsAgent(agentsVm, chatAgent ?: selectedAgent) {
                         ChatScreen(vm, focusTick, onBack = back, onSettings = { screenName = Screen.Settings.name }, onModels = { go(Screen.Models) })
                     }
-                    Screen.Skills -> SkillsScreen(pages, onBack = back, onRequestInNewChat = { request ->
+                    Screen.Skills -> SkillsScreen(pages, onBack = { screenName = groupFrom }, onRequestInNewChat = { request ->
                         vm.newSession()
                         vm.prefillDraft(request)
                         screenName = Screen.Chat.name
@@ -250,7 +257,7 @@ fun VaultApp(
                     Screen.Automation -> AutomationScreen(
                         pages,
                         vm,
-                        onBack = back,
+                        onBack = { screenName = groupFrom },
                         // A run's row opens the chat it posted in (its channel, when it is one).
                         onOpenChat = { id ->
                             vm.openChatById(id)
@@ -281,6 +288,7 @@ fun VaultApp(
                     )
                     Screen.About -> AboutScreen(
                         onBack = { screenName = Screen.Settings.name },
+                        onTour = { tourFrom = Screen.About.name; screenName = Screen.Tour.name },
                         onWelcome = {
                             AgentProfile.setWelcomeDone(hostContext, false)
                             screenName = Screen.Onboarding.name
@@ -288,7 +296,17 @@ fun VaultApp(
                     )
                     Screen.Usage -> UsageScreen(androidx.lifecycle.viewmodel.compose.viewModel<io.github.erkanw.vault.UsageViewModel>(), onBack = { screenName = openedFrom })
                     Screen.Files -> FilesScreen(pages, onBack = back)
-                    Screen.Tools -> ToolsScreen(pages, onBack = back)
+                    Screen.Tools -> ToolsScreen(pages, onBack = { screenName = groupFrom })
+                    Screen.AgentSettings -> AgentSettingsScreen(
+                        onBack = back,
+                        onAutomations = { go(Screen.Automation) },
+                        onSkills = { go(Screen.Skills) },
+                        onTools = { go(Screen.Tools) },
+                    )
+                    Screen.Tour -> TourScreen(onShown = { AgentProfile.setTourDone(hostContext) }, onDone = {
+                        AgentProfile.setTourDone(hostContext)
+                        screenName = tourFrom
+                    })
                     Screen.Databases -> DatabasesScreen(androidx.lifecycle.viewmodel.compose.viewModel<io.github.erkanw.vault.DatabasesViewModel>(), onBack = back)
                     Screen.Models -> ModelsScreen(settings, onBack = { screenName = openedFrom }, onSettings = { screenName = Screen.Provider.name })
                     Screen.Provider -> ProviderScreen(provider, onBack = { screenName = providerFrom }, onModels = { go(Screen.Models) }, onUsage = { go(Screen.Usage) })
@@ -303,7 +321,9 @@ fun VaultApp(
                     Screen.Agents -> AgentsScreen(agentsVm, onBack = back, onOpen = { id -> agentFor = id; agentFrom = Screen.Agents.name; screenName = Screen.Agent.name })
                     Screen.Onboarding -> OnboardingScreen(provider, onDone = {
                         vm.refreshComposerExtras()
-                        screenName = Screen.Home.name
+                        // The walkthrough once, right after the first welcome.
+                        if (AgentProfile.tourDone(hostContext)) screenName = Screen.Home.name
+                        else { tourFrom = Screen.Home.name; screenName = Screen.Tour.name }
                     })
                 }
             }
@@ -314,7 +334,7 @@ fun VaultApp(
 /** How deep a screen is in the stack: the home screen at the bottom, the usage page (reached from Settings) on top. */
 private fun depthOf(screen: Screen): Int = when (screen) {
     Screen.Home -> 0
-    Screen.Usage, Screen.Models, Screen.Provider, Screen.Agent, Screen.AutomationRuns, Screen.About -> 2
-    Screen.Look -> 3
+    Screen.Usage, Screen.Models, Screen.Provider, Screen.Agent, Screen.About, Screen.Skills, Screen.Automation, Screen.Tools -> 2
+    Screen.Look, Screen.AutomationRuns, Screen.Tour -> 3
     else -> 1
 }

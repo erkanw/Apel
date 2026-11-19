@@ -99,7 +99,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /** The places Home leads to. */
-enum class Screen { Home, Chat, Skills, Automation, AutomationRuns, Databases, Settings, Usage, Files, Models, Tools, Provider, Onboarding, Look, Agent, About, Agents }
+enum class Screen { Home, Chat, Skills, Automation, AutomationRuns, Databases, Settings, Usage, Files, Models, Tools, Provider, Onboarding, Look, Agent, About, Agents, AgentSettings, Tour }
 
 /** The next automation to run, for its tile on Home. */
 data class NextRun(val name: String, val atMs: Long)
@@ -507,11 +507,10 @@ private fun HomeDrawer(
             if (!searching) {
                 item(key = "new") { ToolRow(VaultIcons.SquarePen, "New chat", onNewSession) }
                 item(key = "agents") { ToolRow(VaultIcons.Bot, "Agents") { onNavigate(Screen.Agents) } }
+                // Automations, skills and tools live one level down, in Agent settings (Phase 11).
+                item(key = "agent-settings") { ToolRow(VaultIcons.Cog, androidx.compose.ui.res.stringResource(io.github.erkanw.vault.R.string.agent_settings_title)) { onNavigate(Screen.AgentSettings) } }
                 item(key = "files") { ToolRow(VaultIcons.Folder, "Files") { onNavigate(Screen.Files) } }
-                item(key = "skills") { ToolRow(VaultIcons.Sparkles, "Skills") { onNavigate(Screen.Skills) } }
-                item(key = "auto") { ToolRow(VaultIcons.Clock, "Automations") { onNavigate(Screen.Automation) } }
                 item(key = "dbs") { ToolRow(VaultIcons.Database, "Databases") { onNavigate(Screen.Databases) } }
-                item(key = "tools") { ToolRow(VaultIcons.Wrench, "Tools") { onNavigate(Screen.Tools) } }
                 run {
                     // Making a channel is rare: a quiet + on the heading, not a row of its own in the list.
                     item(key = "ch-label") {

@@ -149,6 +149,8 @@
     <string name="about_source">Source code</string>
     <string name="about_source_url" translatable="false">https://github.com/erkanw/apel</string>
     <string name="about_source_sub">github.com/erkanw/apel: questions and bug reports go there</string>
+    <string name="about_tour">Show the walkthrough</string>
+    <string name="about_tour_sub">A short card for each page: what it’s for and where to find it.</string>
     <string name="about_welcome">Show the welcome again</string>
     <string name="about_welcome_sub">The first-run steps: provider, first model, name.</string>
     <string name="about_diagnostics">Copy diagnostics</string>
@@ -188,4 +190,42 @@
     <string name="privacy_permissions">The internet and its state (to wait for a connection); notifications (replies, approvals, automations, the budget); exact alarms, starting after a restart, keeping the phone awake and running in the background while %1$s works (automations on time); an exemption from battery optimisation, only if you allow it when asked; vibration, for haptic feedback; the microphone, only while you dictate.</string>
     <string name="privacy_questions_title">Questions</string>
     <string name="privacy_questions">%1$s is open source: you can read what it does. Ask or report a problem at github.com/erkanw/apel.</string>
+
+    <!-- Drawer → Agent settings (Phase 11) -->
+    <string name="agent_settings_title">Agent settings</string>
+    <string name="agent_settings_sub">Automations, skills and tools</string>
+    <string name="agent_settings_automations">Automations</string>
+    <string name="agent_settings_automations_sub">What %1$s does on a schedule</string>
+    <string name="agent_settings_skills">Skills</string>
+    <string name="agent_settings_skills_sub">What %1$s knows how to do</string>
+    <string name="agent_settings_tools">Tools</string>
+    <string name="agent_settings_tools_sub">What %1$s can use</string>
+    <string name="agent_settings_note">These are shared by all your agents. An agent can switch skills and tools off for itself on its page under Agents, and each automation runs as one agent.</string>
+
+    <!-- The walkthrough after the welcome (Phase 11). %1$s is the agent's name. -->
+    <string name="tour_skip">Skip</string>
+    <string name="tour_next">Next</string>
+    <string name="tour_done">Done</string>
+    <string name="tour_position">Card %1$d of %2$d</string>
+    <string name="tour_agents_title">Agents</string>
+    <string name="tour_agents_body">An agent is a version of %1$s set up for one kind of work, like a study companion, a researcher or a training coach. Each has its own name, look, instructions, model and memory. Choose one on Home before you start; a chat keeps the agent it started with.</string>
+    <string name="tour_agents_where">Menu (top left on Home) → Agents</string>
+    <string name="tour_files_title">Files</string>
+    <string name="tour_files_body">Your agents’ own folder on this phone. They read and write notes and documents here, and you can open, add, share or delete files yourself.</string>
+    <string name="tour_files_where">Menu → Files</string>
+    <string name="tour_skills_title">Skills</string>
+    <string name="tour_skills_body">Written instructions an agent follows for a task it does often, such as a weekly review or a summary in your style. Switch one off when you don’t need it, or ask %1$s to write a new one.</string>
+    <string name="tour_skills_where">Menu → Agent settings → Skills</string>
+    <string name="tour_automations_title">Automations</string>
+    <string name="tour_automations_body">A prompt that runs on a schedule, such as a morning brief or a weekly plan. Each runs as one of your agents and posts its answer in a chat or a channel.</string>
+    <string name="tour_automations_where">Menu → Agent settings → Automations</string>
+    <string name="tour_databases_title">Databases</string>
+    <string name="tour_databases_body">Tables your agents keep for you, such as a reading list, workouts or expenses. You don’t have to build them yourself: describe in a chat what you want to keep track of, as a clear and detailed plan, and %1$s usually sets up and fills the database for you.</string>
+    <string name="tour_databases_where">Menu → Databases</string>
+    <string name="tour_tools_title">Tools</string>
+    <string name="tour_tools_body">What your agents can do beyond writing: search the web, read pages, use a browser, work with your files and databases, and send you notifications. Turn off any tool you don’t want used; some ask you before they act.</string>
+    <string name="tour_tools_where">Menu → Agent settings → Tools</string>
+    <string name="tour_channels_title">Channels</string>
+    <string name="tour_channels_body">Chats on one subject kept together, like work, travel or a course. Make one with the + beside Channels; each channel has its own colour and can have its own agent.</string>
+    <string name="tour_channels_where">Menu → Channels</string>
 </resources>

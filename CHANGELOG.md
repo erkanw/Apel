@@ -13,6 +13,12 @@ Agents: more than one agent, each made for a job.
   database than the database allows.
 - **System prompt** for every agent, explained in the app, with an example to start from and a default.
 - Home's chips choose the agent for new chats; a channel and an automation choose theirs. Usage shows spend by agent.
+- **A chat keeps its agent**; each answer names the agent that wrote it, and the session page changes the agent or
+  only the model.
+- **Agent settings** in the drawer holds Automations, Skills and Tools. A short **walkthrough** follows the welcome
+  (again from About).
+- **About you** is a form (only your name is needed), also asked in the welcome.
+- Your own server's models (Groq and others) are listed from the server, without prices.
 - Failed answers from free models say why free models fail more often. The OpenRouter sign-in works on Samsung phones.
 
 ## 0.1.0 (versionCode 1)

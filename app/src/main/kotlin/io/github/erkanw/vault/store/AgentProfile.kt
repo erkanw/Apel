@@ -69,6 +69,10 @@ object AgentProfile {
     fun welcomeDone(context: Context): Boolean = prefs(context).getBoolean(KEY_WELCOME, false)
 
     fun setWelcomeDone(context: Context, done: Boolean) = prefs(context).edit { putBoolean(KEY_WELCOME, done) }
+
+    /** Whether the walkthrough after the welcome was seen (or skipped). */
+    fun tourDone(context: Context): Boolean = prefs(context).getBoolean("tourDone", false)
+    fun setTourDone(context: Context) = prefs(context).edit { putBoolean("tourDone", true) }
 }
 
 /** What you tell your agents about yourself. Only the name is needed. */
