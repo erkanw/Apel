@@ -111,7 +111,7 @@ fun VaultApp(
         if (screen == Screen.Files && pages.folderUp()) return@BackHandler
         screenName = when (screen) {
             Screen.Usage, Screen.Models, Screen.Look -> openedFrom
-            Screen.Agent -> Screen.Settings.name
+            Screen.Agent, Screen.About -> Screen.Settings.name
             Screen.AutomationRuns -> Screen.Automation.name
             Screen.Provider -> providerFrom
             else -> Screen.Home.name
@@ -265,6 +265,10 @@ fun VaultApp(
                             io.github.erkanw.vault.provider.ProviderKind.Custom -> providerState.customUrl.removePrefix("https://").removePrefix("http://")
                             io.github.erkanw.vault.provider.ProviderKind.None -> "Not connected"
                         },
+                        onAbout = { screenName = Screen.About.name },
+                    )
+                    Screen.About -> AboutScreen(
+                        onBack = { screenName = Screen.Settings.name },
                         onWelcome = {
                             AgentProfile.setWelcomeDone(hostContext, false)
                             screenName = Screen.Onboarding.name
@@ -291,7 +295,7 @@ fun VaultApp(
 /** How deep a screen is in the stack: the home screen at the bottom, the usage page (reached from Settings) on top. */
 private fun depthOf(screen: Screen): Int = when (screen) {
     Screen.Home -> 0
-    Screen.Usage, Screen.Models, Screen.Provider, Screen.Agent, Screen.AutomationRuns -> 2
+    Screen.Usage, Screen.Models, Screen.Provider, Screen.Agent, Screen.AutomationRuns, Screen.About -> 2
     Screen.Look -> 3
     else -> 1
 }

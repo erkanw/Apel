@@ -288,11 +288,19 @@ private fun Dashboard(s: UsageSummary, credits: OrSnapshot?, openRouter: Boolean
                     color = k.muted, style = VaultType.Label.copy(fontWeight = null),
                 )
             }
-            // The three figures rise left to right.
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Figure("Today", usd(s.today), Modifier.weight(1f).rise(clock, 140f))
-                Figure("This week", usd(s.week), Modifier.weight(1f).rise(clock, 200f))
-                Figure("Per answer", s.perMessage?.let { usd(it) } ?: "—", Modifier.weight(1f).rise(clock, 260f))
+            // The three figures rise left to right; with very large text they stack, so no amount is cut.
+            if (androidx.compose.ui.platform.LocalDensity.current.fontScale < 1.5f) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Figure("Today", usd(s.today), Modifier.weight(1f).rise(clock, 140f))
+                    Figure("This week", usd(s.week), Modifier.weight(1f).rise(clock, 200f))
+                    Figure("Per answer", s.perMessage?.let { usd(it) } ?: "—", Modifier.weight(1f).rise(clock, 260f))
+                }
+            } else {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Figure("Today", usd(s.today), Modifier.fillMaxWidth().rise(clock, 140f))
+                    Figure("This week", usd(s.week), Modifier.fillMaxWidth().rise(clock, 200f))
+                    Figure("Per answer", s.perMessage?.let { usd(it) } ?: "—", Modifier.fillMaxWidth().rise(clock, 260f))
+                }
             }
             Text(
                 "Days, weeks (from Monday) and months are UTC" + (if (openRouter) ", as OpenRouter counts them." else ".") + " Per answer is the average of the last 30 days.",

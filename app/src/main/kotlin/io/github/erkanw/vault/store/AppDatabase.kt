@@ -394,6 +394,16 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         @Volatile private var instance: AppDatabase? = null
 
+        /**
+         * Closes the database for a restore and runs [block] (which replaces its files and ends the process) while
+         * holding the lock, so nothing opens it again in between.
+         */
+        fun <T> closeForRestore(block: () -> T): T = synchronized(this) {
+            instance?.close()
+            instance = null
+            block()
+        }
+
         /** Phase 8: tool servers. */
         val MIGRATION_6_7 = object : androidx.room.migration.Migration(6, 7) {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {

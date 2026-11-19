@@ -28,4 +28,88 @@
     <string name="channel_automations_description">What %1$s posts when a scheduled job runs.</string>
     <string name="channel_budget">Budget</string>
     <string name="channel_budget_description">When 80% of the month’s budget is spent, and when it is used up.</string>
+
+    <!-- Settings → Backup (PLAN §6.12) -->
+    <string name="backup_section">Backup</string>
+    <string name="backup_make">Make a backup</string>
+    <string name="backup_make_sub">Everything except keys and tokens, as one zip in Downloads/Apel.</string>
+    <string name="backup_making">Making the backup…</string>
+    <string name="backup_made">Saved %1$s (%2$s) in Downloads/Apel.</string>
+    <string name="backup_restore">Restore a backup</string>
+    <string name="backup_restore_sub">Replaces everything in %1$s with a backup you made. Asks first.</string>
+    <string name="backup_checking">Reading the backup…</string>
+    <string name="backup_restoring">Restoring…</string>
+    <string name="backup_confirm_title">Restore this backup?</string>
+    <string name="backup_confirm_text">Made on %1$s by %2$s %3$s: %4$s and %5$s, in a %6$s file.\n\nEverything in %2$s is replaced by it. Keys and tokens on this phone stay. %2$s restarts when it’s done.</string>
+    <string name="backup_confirm">Restore</string>
+    <plurals name="backup_chats">
+        <item quantity="one">%d chat</item>
+        <item quantity="other">%d chats</item>
+    </plurals>
+    <plurals name="backup_files">
+        <item quantity="one">%d file</item>
+        <item quantity="other">%d files</item>
+    </plurals>
+    <string name="backup_error_not_backup">That file isn’t a backup from %1$s.</string>
+    <string name="backup_error_other_app">That backup is from another app.</string>
+    <string name="backup_error_newer">That backup was made by a newer version of %1$s. Update %1$s, then restore it.</string>
+    <string name="backup_error_damaged">That backup is damaged or incomplete. Nothing was changed.</string>
+    <string name="backup_error_too_big">That backup is too big to restore on this phone.</string>
+    <string name="backup_error_no_space">There isn’t enough free space on this phone to restore it.</string>
+    <string name="backup_error_unreadable">The phone couldn’t read that file.</string>
+    <string name="backup_error_failed">The backup couldn’t be saved in Downloads. Check that the phone has free space.</string>
+
+    <!-- About (PLAN §6.12) -->
+    <string name="about_row">About %1$s</string>
+    <string name="about_row_sub">Version %1$s, privacy, licences</string>
+    <string name="about_title">About</string>
+    <string name="about_tagline">Your own AI agent, on this phone.</string>
+    <string name="about_version">Version %1$s</string>
+    <string name="about_open_source">Free and open source, under the Apache License 2.0.</string>
+    <string name="about_privacy">Privacy statement</string>
+    <string name="about_privacy_sub">What stays on this phone and what leaves it</string>
+    <string name="about_licences">Licences</string>
+    <string name="about_licences_sub">%1$s’s own, and those of what it’s made with</string>
+    <string name="about_source">Source code</string>
+    <string name="about_source_url" translatable="false">https://github.com/erkanw/apel</string>
+    <string name="about_source_sub">github.com/erkanw/apel: questions and bug reports go there</string>
+    <string name="about_welcome">Show the welcome again</string>
+    <string name="about_welcome_sub">The first-run steps: provider, first model, name.</string>
+    <string name="about_diagnostics">Copy diagnostics</string>
+    <string name="about_diagnostics_sub">Versions, settings and counts for a bug report. No chats, names, keys or files.</string>
+    <string name="about_diagnostics_copied">Copied the diagnostics.</string>
+    <string name="about_credits">Mascot made with Blob Atelier by Victoria Wu (MIT). The typeface is Inter (SIL Open Font License). Icons from Lucide (ISC License).</string>
+    <string name="about_no_browser">No app on this phone opens web links.</string>
+
+    <!-- About → Licences -->
+    <string name="licence_apel_by">Erkan Wong · Apache License 2.0</string>
+    <string name="licence_blob">Blob Atelier</string>
+    <string name="licence_blob_by">Victoria Wu · MIT License · the mascot</string>
+    <string name="licence_inter">Inter</string>
+    <string name="licence_inter_by">The Inter Project Authors · SIL Open Font License 1.1 · the typeface</string>
+    <string name="licence_lucide">Lucide</string>
+    <string name="licence_lucide_by">Lucide Icons and Contributors · ISC License · the icons</string>
+    <string name="licence_androidx">AndroidX and Jetpack Compose</string>
+    <string name="licence_androidx_by">The Android Open Source Project · Apache License 2.0 · screens, Room, WorkManager, Custom Tabs</string>
+    <string name="licence_kotlin">Kotlin and kotlinx.coroutines</string>
+    <string name="licence_kotlin_by">JetBrains · Apache License 2.0</string>
+    <string name="licence_okhttp">OkHttp and Okio</string>
+    <string name="licence_okhttp_by">Square · Apache License 2.0 · the connections</string>
+    <string name="licence_unreadable">This licence text couldn’t be read.</string>
+
+    <!-- About → Privacy statement -->
+    <string name="privacy_intro">%1$s has no server and no account with its maker. Nothing about you or how you use the app is sent to its maker: no analytics, no crash reports, no telemetry.</string>
+    <string name="privacy_stays_title">What stays on this phone</string>
+    <string name="privacy_stays">Your chats, channels, files, skills, memory, automations, databases, usage log and settings are kept in the app’s private storage. Keys and tokens are encrypted with the phone’s keystore; they are never shown, logged or put in a backup. Android’s cloud backup is turned off for %1$s.</string>
+    <string name="privacy_leaves_title">What leaves it, and where to</string>
+    <string name="privacy_leaves_provider">The AI provider you chose (OpenRouter, or your own server) receives what each turn needs: your message, attached files, the agent’s instructions and memory, the chat so far and what its tools found. The provider’s own privacy policy applies. On OpenRouter, “Private providers only” (on unless you turn it off) sends requests only to providers that keep no data.</string>
+    <string name="privacy_leaves_web">Web search runs through OpenRouter. When the agent reads a web page or uses the browser, that site sees a visit from this phone.</string>
+    <string name="privacy_leaves_servers">A tool server you add receives the calls the agent makes to it, with the token you gave it.</string>
+    <string name="privacy_leaves_voice">Dictation uses your phone’s speech recogniser, which may send your voice to its own service.</string>
+    <string name="privacy_backups_title">Backups</string>
+    <string name="privacy_backups">A backup is a zip you make yourself, saved in Downloads/Apel. It holds everything above except keys and tokens, and it isn’t encrypted: keep it somewhere safe.</string>
+    <string name="privacy_permissions_title">Permissions</string>
+    <string name="privacy_permissions">The internet and its state (to wait for a connection); notifications (replies, approvals, automations, the budget); exact alarms, starting after a restart, keeping the phone awake and running in the background while %1$s works (automations on time); an exemption from battery optimisation, only if you allow it when asked; vibration, for haptic feedback; the microphone, only while you dictate.</string>
+    <string name="privacy_questions_title">Questions</string>
+    <string name="privacy_questions">%1$s is open source: you can read what it does. Ask or report a problem at github.com/erkanw/apel.</string>
 </resources>

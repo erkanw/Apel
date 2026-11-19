@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -75,7 +76,7 @@ fun PageHeader(
             right = { if (action != null) action() },
             title = {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(title, style = VaultType.Title, color = k.text, maxLines = 1)
+                    Text(title, style = VaultType.Title, color = k.text, maxLines = 1, modifier = Modifier.semantics { heading() })
                     if (subtitle.isNotBlank()) Text(subtitle, style = VaultType.Caption, color = k.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             },

@@ -32,6 +32,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.liveRegion
 import io.github.erkanw.vault.ProviderViewModel
 import io.github.erkanw.vault.mascot.Blob
 import io.github.erkanw.vault.mascot.BlobMood
@@ -57,6 +59,12 @@ fun OnboardingScreen(vm: ProviderViewModel, onDone: () -> Unit) {
     var chosen by rememberSaveable { mutableStateOf<String?>(null) }
     var warnFor by rememberSaveable { mutableStateOf<String?>(null) }
     var lookOpen by rememberSaveable { mutableStateOf(false) }
+    // A new phone can start from a backup instead (PLAN §6.12): the same picker and question as Settings.
+    val settings = androidx.lifecycle.viewmodel.compose.viewModel<io.github.erkanw.vault.SettingsViewModel>()
+    val backup by settings.backup.collectAsStateWithLifecycle()
+    val pickBackup = rememberBackupPicker(settings)
+    LaunchedEffect(Unit) { settings.forgetBackupNotes() }
+    val appName = androidx.compose.ui.res.stringResource(io.github.erkanw.vault.R.string.app_name)
 
     // Once OpenRouter is connected, the next step is the first model.
     LaunchedEffect(state.kind) {
@@ -152,7 +160,22 @@ fun OnboardingScreen(vm: ProviderViewModel, onDone: () -> Unit) {
         // One primary action per step, at the foot.
         Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp)) {
             when (step) {
-                Step.Welcome -> PrimaryButton("Get started", { stepName = Step.Connect.name }, Modifier.fillMaxWidth())
+                Step.Welcome -> {
+                    PrimaryButton("Get started", { stepName = Step.Connect.name }, Modifier.fillMaxWidth(), enabled = backup.working == null)
+                    val status = when (backup.working) {
+                        io.github.erkanw.vault.BackupWork.Checking -> androidx.compose.ui.res.stringResource(io.github.erkanw.vault.R.string.backup_checking)
+                        io.github.erkanw.vault.BackupWork.Restoring -> androidx.compose.ui.res.stringResource(io.github.erkanw.vault.R.string.backup_restoring)
+                        else -> backup.error?.takeIf { backup.restoreError }?.let { backupProblemText(it, appName) }
+                    }
+                    QuietButton(
+                        androidx.compose.ui.res.stringResource(io.github.erkanw.vault.R.string.backup_restore), { if (backup.working == null) pickBackup() },
+                        Modifier.fillMaxWidth().padding(top = 4.dp), color = k.muted,
+                    )
+                    if (status != null) Text(
+                        status, style = VaultType.Caption, color = if (backup.error != null) k.attention else k.muted, textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite },
+                    )
+                }
                 Step.Connect -> when {
                     state.connected -> PrimaryButton("Continue", { stepName = Step.Model.name }, Modifier.fillMaxWidth())
                     // While the browser is out or the code is being asked for, the panel holds the actions.
@@ -182,6 +205,8 @@ fun OnboardingScreen(vm: ProviderViewModel, onDone: () -> Unit) {
     }
 
     }
+
+    BackupConfirmDialog(settings)
 
     warnFor?.let { id ->
         val pick = vm.options(catalog.models, state.privateOnly).first { it.model.id == id }

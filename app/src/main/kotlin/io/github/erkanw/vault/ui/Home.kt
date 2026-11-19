@@ -64,6 +64,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -95,7 +96,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /** The places Home leads to. */
-enum class Screen { Home, Chat, Skills, Automation, AutomationRuns, Databases, Settings, Usage, Files, Models, Tools, Provider, Onboarding, Look, Agent }
+enum class Screen { Home, Chat, Skills, Automation, AutomationRuns, Databases, Settings, Usage, Files, Models, Tools, Provider, Onboarding, Look, Agent, About }
 
 /** The next automation to run, for its tile on Home. */
 data class NextRun(val name: String, val atMs: Long)
@@ -237,14 +238,19 @@ fun HomeScreen(
                 title = { TitleWithDot(LocalAgentName.current, presence, onClick = if (presence == Presence.Problem) onRetry else null) },
             )
 
-            // The hero: Blob and the question, in the middle of what is left.
+            // The hero: Blob and the question, in the middle of what is left. The blob takes the room left after the
+            // question (landscape, a big font, the keyboard), and steps aside when there is too little for it.
+            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
+            val room = maxHeight - 120.dp
+            val wanted = if (keyboardUp) 150.dp else 210.dp
+            val fits = if (room < wanted) room else wanted
             Column(
-                Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp),
+                Modifier.fillMaxSize().padding(horizontal = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                val blobSize by androidx.compose.animation.core.animateDpAsState(if (keyboardUp) 150.dp else 210.dp, Motion.settle(), label = "blobSize")
-                Blob(
+                val blobSize by androidx.compose.animation.core.animateDpAsState(if (fits < 72.dp) 0.dp else fits, Motion.settle(), label = "blobSize")
+                if (blobSize > 0.dp) Blob(
                     mood,
                     size = blobSize,
                     lookAt = if (typing) Offset(0f, 0.85f) else null,
@@ -263,6 +269,7 @@ fun HomeScreen(
                         ),
                     )
                 }
+            }
             }
 
             // A few suggestions: the channels, the latest chat, the next automation. They step aside while typing.

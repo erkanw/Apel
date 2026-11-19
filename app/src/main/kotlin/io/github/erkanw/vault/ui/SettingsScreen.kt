@@ -86,7 +86,7 @@ fun SettingsScreen(
     onLook: () -> Unit = {},
     onProvider: () -> Unit = {},
     providerSummary: String = "",
-    onWelcome: () -> Unit = {},
+    onAbout: () -> Unit = {},
 ) {
     val k = MaterialTheme.vault
     val context = LocalContext.current
@@ -102,8 +102,12 @@ fun SettingsScreen(
     val budget by vm.budget.collectAsStateWithLifecycle()
     val newMessageAlertsOn by vm.newMessageAlertsOn.collectAsStateWithLifecycle()
     val themeMode by vm.themeMode.collectAsStateWithLifecycle()
+    val backup by vm.backup.collectAsStateWithLifecycle()
+    val pickBackup = rememberBackupPicker(vm)
+    LaunchedEffect(Unit) { vm.forgetBackupNotes() }
     val version = remember { runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty() }
 
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().background(k.background).imePadding()) {
         PageHeader(
             title = "Settings",
@@ -236,22 +240,107 @@ fun SettingsScreen(
                 }
             }
 
-            Section("About") {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(appName, style = VaultType.Body.copy(fontWeight = VaultType.Row.fontWeight), color = k.text)
-                    Text("Your own AI agent, on this phone.", style = VaultType.Label.copy(fontWeight = null), color = k.muted)
-                    Text(
-                        "Mascot made with Blob Atelier by Victoria Wu (MIT). The typeface is Inter (SIL Open Font " +
-                            "Licence). Icons follow Lucide (ISC licence).",
-                        style = VaultType.Caption, color = k.muted,
-                    )
-                }
+            Section(stringResource(R.string.backup_section)) {
+                val busy = backup.working != null
+                val makeError = backup.error?.takeIf { !backup.restoreError }
+                val restoreError = backup.error?.takeIf { backup.restoreError }
+                ActionRow(
+                    title = stringResource(R.string.backup_make),
+                    subtitle = if (backup.working == io.github.erkanw.vault.BackupWork.Making) stringResource(R.string.backup_making)
+                        else makeError?.let { backupProblemText(it, appName) } ?: stringResource(R.string.backup_make_sub),
+                    subtitleColor = if (makeError != null) k.attention else null,
+                    status = backup.working == io.github.erkanw.vault.BackupWork.Making || makeError != null,
+                    enabled = !busy,
+                    onClick = vm::makeBackup,
+                )
                 RowDivider()
-                ActionRow(title = "Show the welcome again", subtitle = "The first-run steps: provider, first model, name.", onClick = onWelcome)
+                ActionRow(
+                    title = stringResource(R.string.backup_restore),
+                    subtitle = when (backup.working) {
+                        io.github.erkanw.vault.BackupWork.Checking -> stringResource(R.string.backup_checking)
+                        io.github.erkanw.vault.BackupWork.Restoring -> stringResource(R.string.backup_restoring)
+                        else -> restoreError?.let { backupProblemText(it, appName) } ?: stringResource(R.string.backup_restore_sub, appName)
+                    },
+                    subtitleColor = if (restoreError != null) k.attention else null,
+                    status = backup.working == io.github.erkanw.vault.BackupWork.Checking || backup.working == io.github.erkanw.vault.BackupWork.Restoring || restoreError != null,
+                    enabled = !busy,
+                    onClick = pickBackup,
+                )
+            }
+
+            Section(stringResource(R.string.about_title)) {
+                ActionRow(
+                    title = stringResource(R.string.about_row, appName),
+                    subtitle = stringResource(R.string.about_row_sub, version),
+                    onClick = onAbout,
+                    chevron = true,
+                )
             }
             Spacer(Modifier.height(12.dp))
         }
     }
+
+    BackupConfirmDialog(vm)
+
+    backup.made?.let { made ->
+        val text = stringResource(R.string.backup_made, made.file.name, fileSize(context, made.bytes))
+        val large = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.4f
+        LaunchedEffect(made) { delay(if (large) 8000 else 5000); vm.clearBackupNote() }
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) { NotePill(text) }
+    }
+    }
+}
+
+/** "30 kB", with a space that never breaks the number from its unit. */
+internal fun fileSize(context: android.content.Context, bytes: Long): String =
+    android.text.format.Formatter.formatShortFileSize(context, bytes).replace(' ', '\u00A0')
+
+/** Opens the phone's file picker for a backup zip; the chosen one is read and checked, then [BackupConfirmDialog] asks. */
+@Composable
+internal fun rememberBackupPicker(vm: SettingsViewModel): () -> Unit {
+    val picker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) vm.checkBackup(uri)
+    }
+    return { picker.launch(arrayOf("application/zip", "application/octet-stream", "application/x-zip-compressed")) }
+}
+
+/** "Restore this backup?" with what the backup holds, once one has been read and checked. */
+@Composable
+internal fun BackupConfirmDialog(vm: SettingsViewModel) {
+    val backup by vm.backup.collectAsStateWithLifecycle()
+    val checked = backup.confirm ?: return
+    val context = LocalContext.current
+    val appName = stringResource(R.string.app_name)
+    val m = checked.manifest
+    val res = context.resources
+    val made = remember(m.created) {
+        java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT).format(java.util.Date(m.created))
+    }
+    VaultDialog(
+        title = stringResource(R.string.backup_confirm_title),
+        text = stringResource(
+            R.string.backup_confirm_text, made, appName, m.versionName,
+            res.getQuantityString(R.plurals.backup_chats, m.chats, m.chats),
+            res.getQuantityString(R.plurals.backup_files, m.files, m.files),
+            fileSize(context, checked.bytes),
+        ),
+        confirm = stringResource(R.string.backup_confirm),
+        onConfirm = vm::restoreBackup,
+        onDismiss = vm::cancelRestore,
+        destructive = true,
+    )
+}
+
+@Composable
+internal fun backupProblemText(problem: io.github.erkanw.vault.store.BackupProblem, appName: String): String = when (problem) {
+    io.github.erkanw.vault.store.BackupProblem.NotABackup -> stringResource(R.string.backup_error_not_backup, appName)
+    io.github.erkanw.vault.store.BackupProblem.OtherApp -> stringResource(R.string.backup_error_other_app)
+    io.github.erkanw.vault.store.BackupProblem.Newer -> stringResource(R.string.backup_error_newer, appName)
+    io.github.erkanw.vault.store.BackupProblem.Damaged -> stringResource(R.string.backup_error_damaged)
+    io.github.erkanw.vault.store.BackupProblem.TooBig -> stringResource(R.string.backup_error_too_big)
+    io.github.erkanw.vault.store.BackupProblem.NoSpace -> stringResource(R.string.backup_error_no_space)
+    io.github.erkanw.vault.store.BackupProblem.Unreadable -> stringResource(R.string.backup_error_unreadable)
+    io.github.erkanw.vault.store.BackupProblem.Failed -> stringResource(R.string.backup_error_failed)
 }
 
 @Composable
@@ -282,5 +371,7 @@ private fun ActionRow(
     enabled: Boolean = true,
     chevron: Boolean = false,
     color: androidx.compose.ui.graphics.Color? = null,
+    subtitleColor: androidx.compose.ui.graphics.Color? = null,
+    status: Boolean = false,
     onClick: () -> Unit,
-) = GroupActionRow(title, subtitle, onClick, enabled = enabled, chevron = chevron, color = color)
+) = GroupActionRow(title, subtitle, onClick, enabled = enabled, chevron = chevron, color = color, subtitleColor = subtitleColor, status = status)

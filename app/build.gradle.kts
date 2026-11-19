@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -7,6 +9,19 @@ plugins {
 
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
+}
+
+// The release signing key stays out of git (PLAN §2.3): keystore.properties beside settings.gradle.kts names it.
+// Without that file the release build is unsigned (as F-Droid builds it; F-Droid signs with its own key).
+val keystoreFile = rootProject.file("keystore.properties")
+val keystore = Properties().apply { if (keystoreFile.isFile) keystoreFile.inputStream().use { load(it) } }
+
+// The licence texts shown in About → Licences come from the repository's own files, so they can't drift.
+val licenseAssets = tasks.register<Sync>("licenseAssets") {
+    from(rootProject.file("LICENSE"))
+    from(rootProject.file("NOTICE"))
+    from(rootProject.file("licenses"))
+    into(layout.buildDirectory.dir("generated/licenseAssets/licenses"))
 }
 
 android {
@@ -22,10 +37,28 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (keystore.getProperty("storeFile") != null) {
+            create("release") {
+                storeFile = rootProject.file(keystore.getProperty("storeFile"))
+                storePassword = keystore.getProperty("storePassword")
+                keyAlias = keystore.getProperty("keyAlias")
+                keyPassword = keystore.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
         }
+    }
+
+    // No Google-only blobs in the APK: F-Droid builds must be reproducible from the source.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
 
     compileOptions {
@@ -39,10 +72,13 @@ android {
         compose = true
     }
     sourceSets["main"].java.srcDir("src/main/kotlin")
+    sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/licenseAssets"))
     sourceSets["androidTest"].assets.srcDir("$projectDir/schemas")
     sourceSets["test"].java.srcDir("src/test/kotlin")
     sourceSets["androidTest"].java.srcDir("src/androidTest/kotlin")
 }
+
+tasks.named("preBuild") { dependsOn(licenseAssets) }
 
 dependencies {
     implementation(libs.androidx.core.ktx)

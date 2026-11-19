@@ -72,7 +72,7 @@ fun VaultTopBar(
     right: @Composable RowScope.() -> Unit = {},
     title: @Composable () -> Unit = {},
 ) {
-    Box(modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp)) {
+    Box(modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 4.dp)) {
         Row(Modifier.align(Alignment.CenterStart), verticalAlignment = Alignment.CenterVertically, content = left)
         Box(Modifier.align(Alignment.Center).padding(horizontal = 56.dp)) { title() }
         Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically, content = right)

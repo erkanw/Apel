@@ -10,4 +10,7 @@ It includes third-party material under its own licence:
   Copyright (c) 2026 Victoria Wu. Full text: licenses/BlobAtelier-MIT.txt
 - Inter, by The Inter Project Authors (https://github.com/rsms/inter),
   SIL Open Font License 1.1. Full text: licenses/Inter-OFL.txt
-- Icon shapes from Lucide (https://lucide.dev), ISC License.
+- Icon shapes from Lucide (https://lucide.dev), ISC License; the icons Lucide
+  derived from Feather (Cole Bemis) are MIT. Full text: licenses/Lucide-ISC.txt
+- AndroidX and Jetpack Compose (The Android Open Source Project), Kotlin and
+  kotlinx.coroutines (JetBrains), OkHttp and Okio (Square): Apache License 2.0.

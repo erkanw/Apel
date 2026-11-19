@@ -12,8 +12,6 @@
     <!-- Small vibrations when you send, copy and when a reply is done (Haptics). -->
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- The fingerprint (or face, or screen lock) check before opening the app and before Allow from a notification. -->
-    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <!-- Dictation: the microphone is only used while you dictate, and asked for the first time you do. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Automations (PLAN §8): wake the phone on the minute when you allow it, set the alarm again after a restart, and

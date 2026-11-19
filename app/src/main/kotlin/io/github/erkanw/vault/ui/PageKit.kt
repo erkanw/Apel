@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.heading
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -137,6 +139,13 @@ fun GroupActionRow(
     chevron: Boolean = false,
     color: Color? = null,
     leading: (@Composable () -> Unit)? = null,
+    /** Amber for a line that needs you (a failure to act on). */
+    subtitleColor: Color? = null,
+    /**
+     * The second line is a status (progress, a failure): kept at full strength while the row is disabled, never cut,
+     * and read out when it changes.
+     */
+    status: Boolean = false,
 ) {
     val k = MaterialTheme.vault
     Row(
@@ -144,8 +153,9 @@ fun GroupActionRow(
             .fillMaxWidth()
             .heightIn(min = 56.dp)
             .pressable(onClick = { if (enabled) onClick() }, pressedScale = 1f, pressed = if (enabled) k.pressed else Color.Transparent)
+            .semantics { if (!enabled) disabled() }
             .padding(horizontal = 16.dp, vertical = 12.dp)
-            .alpha(if (enabled) 1f else 0.5f),
+            .alpha(if (enabled || status) 1f else 0.5f),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (leading != null) {
@@ -153,8 +163,12 @@ fun GroupActionRow(
             Spacer(Modifier.width(14.dp))
         }
         Column(Modifier.weight(1f)) {
-            Text(title, style = VaultType.Body.copy(fontWeight = VaultType.Row.fontWeight), color = color ?: k.text)
-            if (!subtitle.isNullOrBlank()) Text(subtitle, style = VaultType.Label.copy(fontWeight = null), color = k.muted, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            Text(title, style = VaultType.Body.copy(fontWeight = VaultType.Row.fontWeight), color = color ?: k.text, modifier = Modifier.alpha(if (!enabled && status) 0.5f else 1f))
+            if (!subtitle.isNullOrBlank()) Text(
+                subtitle, style = VaultType.Label.copy(fontWeight = null), color = subtitleColor ?: k.muted,
+                maxLines = if (status) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis,
+                modifier = if (status) Modifier.semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite } else Modifier,
+            )
         }
         if (chevron) {
             Spacer(Modifier.width(8.dp))

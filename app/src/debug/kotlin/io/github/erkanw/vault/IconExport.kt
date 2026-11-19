@@ -28,6 +28,16 @@ object IconExport {
             draw(Canvas(bitmap), px, centreWhole = true)
             File(dir, "ic_launcher_foreground-$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         }
+        // The store icon (512 px, fastlane/…/images/icon.png): what a launcher shows of the adaptive icon (the middle
+        // 72 of 108 dp), the ground and Blob, square (stores round it themselves).
+        val store = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888)
+        val full = (512 * 108f / 72f).toInt()
+        Canvas(store).apply {
+            translate((512 - full) / 2f, (512 - full) / 2f)
+            context.getDrawable(R.drawable.ic_launcher_background)!!.apply { setBounds(0, 0, full, full) }.draw(this)
+            draw(this, full, centreWhole = true)
+        }
+        File(dir, "store_icon.png").outputStream().use { store.compress(Bitmap.CompressFormat.PNG, 100, it) }
         // The launch screen draws its icon at 240 dp: a picture of its own at 4x, so Blob stays sharp there.
         val splash = Bitmap.createBitmap(960, 960, Bitmap.Config.ARGB_8888)
         draw(Canvas(splash), 960)

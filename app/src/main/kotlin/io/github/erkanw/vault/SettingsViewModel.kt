@@ -13,6 +13,9 @@ import io.github.erkanw.vault.chat.SeenStore
 import io.github.erkanw.vault.chat.movedModelOrder
 import io.github.erkanw.vault.chat.prettyModelName
 import io.github.erkanw.vault.data.BlobPrefs
+import io.github.erkanw.vault.store.Backup
+import io.github.erkanw.vault.store.BackupException
+import io.github.erkanw.vault.store.BackupProblem
 import io.github.erkanw.vault.ui.Haptics
 import io.github.erkanw.vault.ui.ThemeMode
 import io.github.erkanw.vault.ui.applyNightMode
@@ -116,6 +119,75 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) { io.github.erkanw.vault.usage.Budget.refresh(app) }
     }
 
+    // ---- backup (PLAN §6.12) -------------------------------------------------------------------------------
+
+    private val _backup = MutableStateFlow(BackupUi())
+    val backup: StateFlow<BackupUi> = _backup.asStateFlow()
+
+    /** Writes a backup into Downloads/Apel. */
+    fun makeBackup() {
+        if (_backup.value.working != null) return
+        _backup.value = BackupUi(working = BackupWork.Making)
+        viewModelScope.launch {
+            _backup.value = try {
+                BackupUi(made = Backup.export(getApplication()))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                BackupUi(error = BackupProblem.Failed)
+            }
+        }
+    }
+
+    /** Reads and checks the chosen backup; the screen then asks before [restoreBackup]. */
+    fun checkBackup(uri: android.net.Uri) {
+        if (_backup.value.working != null) return
+        _backup.value = BackupUi(working = BackupWork.Checking)
+        viewModelScope.launch {
+            _backup.value = try {
+                BackupUi(confirm = Backup.check(getApplication(), uri))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: BackupException) {
+                BackupUi(error = e.problem, restoreError = true)
+            } catch (e: Exception) {
+                BackupUi(error = BackupProblem.Unreadable, restoreError = true)
+            }
+        }
+    }
+
+    fun cancelRestore() {
+        _backup.value.confirm?.let(Backup::discard)
+        _backup.value = BackupUi()
+    }
+
+    /** Replaces everything with the checked backup; on success the app restarts and this never returns. */
+    fun restoreBackup() {
+        val checked = _backup.value.confirm ?: return
+        _backup.value = BackupUi(working = BackupWork.Restoring)
+        viewModelScope.launch {
+            try {
+                Backup.restore(getApplication(), checked)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: BackupException) {
+                _backup.value = BackupUi(error = e.problem, restoreError = true)
+            } catch (e: Exception) {
+                _backup.value = BackupUi(error = BackupProblem.Damaged, restoreError = true)
+            }
+        }
+    }
+
+    /** A page showing the backup rows opened: an old success or failure line, from elsewhere, is not shown again. */
+    fun forgetBackupNotes() {
+        val b = _backup.value
+        if (b.working == null && b.confirm == null) _backup.value = BackupUi()
+    }
+
+    fun clearBackupNote() {
+        if (_backup.value.made != null) _backup.value = _backup.value.copy(made = null)
+    }
+
     // ---- models -----------------------------------------------------------------------------------------------
 
     /** The presets as they are: no phone choices applied. The Models page edits these. */
@@ -201,3 +273,15 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
         changeModels("Saving…", { backend.setModelOrder(next) })
     }
 }
+
+enum class BackupWork { Making, Checking, Restoring }
+
+/** The Backup group: what is running, a backup waiting for the OK, the last one made, or why it failed. */
+data class BackupUi(
+    val working: BackupWork? = null,
+    val confirm: Backup.Checked? = null,
+    val made: Backup.Made? = null,
+    val error: BackupProblem? = null,
+    /** The error came from restoring (shown under Restore), not from making one. */
+    val restoreError: Boolean = false,
+)
