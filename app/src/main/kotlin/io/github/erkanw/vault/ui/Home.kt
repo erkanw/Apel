@@ -132,6 +132,8 @@ fun HomeScreen(
     onDelete: (SessionSummary) -> Unit,
     onNavigate: (Screen) -> Unit,
     onRetry: () -> Unit,
+    /** Opening the drawer reads the list again; unlike [onRetry] it never leaves Home (no provider is needed to read chats). */
+    onRefresh: () -> Unit = onRetry,
     channels: List<ChannelEntry> = emptyList(),
     onOpenChannel: (Channel) -> Unit = {},
     onSaveChannelLook: (Channel, ChannelLook) -> Unit = { _, _ -> },
@@ -176,7 +178,7 @@ fun HomeScreen(
     LaunchedEffect(drawer) {
         snapshotFlow { drawer.isOpen }.filter { it }.collect {
             focus.clearFocus()
-            onRetry()
+            onRefresh()
         }
     }
 

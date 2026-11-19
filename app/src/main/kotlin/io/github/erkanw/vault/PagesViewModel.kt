@@ -48,9 +48,6 @@ private class LimitedOutput(private val inner: java.io.OutputStream, private val
 class PagesViewModel(app: Application) : AndroidViewModel(app) {
     private val backend: AgentBackend = AppGraph.backend(app)
 
-    /** What a page says while nothing is connected. */
-    private val notConnected: String = app.getString(R.string.not_connected)
-
     // ---- Skills and Automations ----------------------------------------------------------------------
 
     private val _skills = MutableStateFlow(PageState<SkillInfo>())
@@ -67,7 +64,7 @@ class PagesViewModel(app: Application) : AndroidViewModel(app) {
         // A run started or ended, or the agent changed a job: the page shows it (quietly, keeping what is shown meanwhile).
         viewModelScope.launch {
             io.github.erkanw.vault.automation.Automations.version.collect {
-                if (it > 0L && backend.connected) runCatching { backend.automations() }.onSuccess { list -> _automations.value = PageState(items = list) }
+                if (it > 0L) runCatching { backend.automations() }.onSuccess { list -> _automations.value = PageState(items = list) }
             }
         }
     }
@@ -287,10 +284,6 @@ class PagesViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Shows the folder [path] ("" is the top) of the workspace. */
     fun openFolder(path: String) {
-        if (!backend.connected) {
-            _files.value = FilesState(error = notConnected)
-            return
-        }
         val mine = ++filesRequest
         _files.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
@@ -433,11 +426,8 @@ class PagesViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- shared ----------------------------------------------------------------------------------------
 
+    // Everything these pages show is on the phone: they open without a provider (only a turn needs one).
     private fun <T> load(flow: MutableStateFlow<PageState<T>>, fetch: suspend () -> List<T>) {
-        if (!backend.connected) {
-            flow.value = PageState(error = notConnected)
-            return
-        }
         flow.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
             try {

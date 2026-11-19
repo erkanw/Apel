@@ -203,6 +203,7 @@ fun VaultApp(
                             onDelete = vm::deleteSession,
                             onNavigate = ::go,
                             onRetry = { if (connected) vm.refreshSessions() else { providerFrom = Screen.Home.name; screenName = Screen.Provider.name } },
+                            onRefresh = { vm.refreshSessions() },
                             channels = channelEntries,
                             onOpenChannel = { channel ->
                                 vm.openChannel(channel)
