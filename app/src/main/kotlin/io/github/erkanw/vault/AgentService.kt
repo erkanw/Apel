@@ -76,6 +76,7 @@ class AgentService : Service() {
         private const val ACTION_RUN = "io.github.erkanw.vault.RUN_AUTOMATIONS"
         private const val HOLD_CHAT = "chat"
         private const val HOLD_AUTOMATION = "automation"
+        private const val HOLD_SIGN_IN = "sign-in"
 
         /** What keeps the service running now, and how many times: a chat’s turn (once at most), automation starts. */
         private val holds = HashMap<String, Int>()
@@ -115,7 +116,7 @@ class AgentService : Service() {
         /** Starts the service for [hold]; false when Android doesn't allow it now (in the background, without an exact alarm). */
         private fun acquire(context: Context, hold: String, action: String?): Boolean = try {
             ContextCompat.startForegroundService(context, Intent(context, AgentService::class.java).setAction(action))
-            synchronized(holds) { holds[hold] = if (hold == HOLD_CHAT) 1 else (holds[hold] ?: 0) + 1 }
+            synchronized(holds) { holds[hold] = if (hold == HOLD_CHAT || hold == HOLD_SIGN_IN) 1 else (holds[hold] ?: 0) + 1 }
             true
         } catch (e: Exception) {
             Log.w(TAG, "could not start the service for $hold", e)
@@ -147,6 +148,17 @@ class AgentService : Service() {
         }
 
         fun stop(context: Context) = release(context, HOLD_CHAT)
+
+        /**
+         * The OpenRouter sign-in is open in the browser and the app listens for its answer on this phone. Some phones
+         * (Samsung's Freecess) freeze an app as soon as it is behind the browser, and a frozen app can't answer, so the
+         * browser says the page can't be reached. An app with a foreground service isn't frozen.
+         */
+        fun holdForSignIn(context: Context) {
+            acquire(context.applicationContext, HOLD_SIGN_IN, null)
+        }
+
+        fun releaseSignIn(context: Context) = release(context.applicationContext, HOLD_SIGN_IN)
 
         /** Runs the due automations in the service; false when it can't be started now (the caller runs them another way). */
         fun runAutomations(context: Context): Boolean = acquire(context.applicationContext, HOLD_AUTOMATION, ACTION_RUN)

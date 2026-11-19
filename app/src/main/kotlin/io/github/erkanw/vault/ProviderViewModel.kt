@@ -83,6 +83,7 @@ class ProviderViewModel(app: Application) : AndroidViewModel(app) {
         attempt = a
         _signIn.value = SignIn.Waiting(method)
         loopback?.let { server ->
+            AgentService.holdForSignIn(getApplication())
             loopbackJob = viewModelScope.launch {
                 try {
                     finishFromCallback(server.await())
@@ -166,6 +167,7 @@ class ProviderViewModel(app: Application) : AndroidViewModel(app) {
         loopbackJob?.cancel()
         loopbackJob = null
         runCatching { loopback?.close() }
+        if (loopback != null) AgentService.releaseSignIn(getApplication())
         loopback = null
     }
 
