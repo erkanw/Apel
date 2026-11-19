@@ -84,6 +84,11 @@ fun SessionInfoPage(
     onRename: (() -> Unit)?,
     onChangeModel: (() -> Unit)?,
     onCompress: (() -> Unit)?,
+    /** The agent this chat talks to, and its own model's name (null: the main model). */
+    agentName: String? = null,
+    agentModel: String? = null,
+    /** Null when there is no other agent to change to. */
+    onChangeAgent: (() -> Unit)? = null,
 ) {
     val k = MaterialTheme.vault
     val tracker = rememberEntranceTracker(sessionName)
@@ -123,7 +128,7 @@ fun SessionInfoPage(
                 )
             }
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
-                listOf("Session", "Model", "Files").forEachIndexed { i, label -> VaultChip(label, { tab = i }, selected = tab == i) }
+                listOf("Session", "Agent", "Files").forEachIndexed { i, label -> VaultChip(label, { tab = i }, selected = tab == i) }
             }
             Spacer(Modifier.height(8.dp))
             when (tab) {
@@ -147,14 +152,22 @@ fun SessionInfoPage(
                         )
                     }
                 }
-                1 -> if (modelName == null) {
-                    EmptyTab(
+                1 -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (agentName != null) InfoGroup(Modifier.entrance("agent", 0, tracker, dx = 0.dp, dy = 8.dp)) {
+                        InfoRow(
+                            "Agent", agentName,
+                            detail = if (agentModel != null) "Answers with $agentModel" else "Answers with the main model",
+                            action = if (onChangeAgent != null) "Change" else null,
+                            onClick = onChangeAgent,
+                        )
+                    }
+                    if (modelName == null) EmptyTab(
                         // Without a server the amber line above already leads to Settings: say why, no second button.
                         if (onSetUp != null) "Connect an AI provider before you choose a model." else "No model chosen yet.",
                         action = if (onSetUp == null && onChangeModel != null) "Choose a model" to onChangeModel else null,
-                        modifier = Modifier.entrance("model-empty", 0, tracker, dx = 0.dp, dy = 8.dp),
+                        modifier = Modifier.entrance("model-empty", 1, tracker, dx = 0.dp, dy = 8.dp),
                     )
-                } else InfoGroup(Modifier.entrance("model", 0, tracker, dx = 0.dp, dy = 8.dp)) {
+                    else InfoGroup(Modifier.entrance("model", 1, tracker, dx = 0.dp, dy = 8.dp)) {
                     InfoRow(
                         "Model", modelTitle ?: modelName,
                         detail = modelName.takeIf { it.isNotBlank() && it != modelTitle },
@@ -171,6 +184,11 @@ fun SessionInfoPage(
                             busy = busy,
                         )
                     }
+                    }
+                    if (modelName != null) Text(
+                        "Changing the agent switches to its model. Change the model to use another one in this chat only.",
+                        style = VaultType.Caption, color = k.muted, modifier = Modifier.padding(horizontal = 8.dp),
+                    )
                 }
                 else -> if (stats.attachments.isEmpty()) {
                     EmptyTab("Pictures and files you send in this chat show up here.", action = null, modifier = Modifier.entrance("files-empty", 0, tracker, dx = 0.dp, dy = 8.dp))

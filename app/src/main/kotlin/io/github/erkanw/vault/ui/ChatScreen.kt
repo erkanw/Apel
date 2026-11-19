@@ -169,6 +169,9 @@ fun ChatScreen(vm: ChatViewModel, focusTick: Int, onBack: () -> Unit, onSettings
     val forkBoundary by vm.forkBoundary.collectAsStateWithLifecycle()
     val commands by vm.commands.collectAsStateWithLifecycle()
     val models by vm.models.collectAsStateWithLifecycle()
+    // The agents, to name the one under each answer; the chat's own agent for the session page.
+    val agentList by io.github.erkanw.vault.store.Agents.list.collectAsStateWithLifecycle()
+    val chatAgentId by vm.chatAgent.collectAsStateWithLifecycle()
     val catalog by vm.catalog.collectAsStateWithLifecycle()
     val modelPrefs by vm.modelPrefs.collectAsStateWithLifecycle()
     val attachments by vm.pending.collectAsStateWithLifecycle()
@@ -224,7 +227,9 @@ fun ChatScreen(vm: ChatViewModel, focusTick: Int, onBack: () -> Unit, onSettings
     var viewing by remember { mutableStateOf<Pair<List<MessageAttachment>, Int>?>(null) }
     var draft by rememberSaveable { mutableStateOf("") }
     val matches = matchingCommands(commands, draft)
-    val preset = shownPreset(models, sessions.firstOrNull { it.chatId == chatId }?.modelPreset)
+    val chatAgent = agentList.firstOrNull { it.id == chatAgentId }
+    var showAgents by rememberSaveable { mutableStateOf(false) }
+    val preset = shownPreset(models, sessions.firstOrNull { it.chatId == chatId }?.modelPreset, chatAgent?.row?.model)
     val listState = rememberLazyListState()
     val focus = remember { FocusRequester() }
     // Dictated words go into the message box, to be read and changed before it is sent.
@@ -349,6 +354,7 @@ fun ChatScreen(vm: ChatViewModel, focusTick: Int, onBack: () -> Unit, onSettings
                                         val mine = row.message.role == Role.User
                                         MessageRow(
                                             row = row,
+                                            agentName = row.message.agentId?.let { id -> agentList.firstOrNull { it.id == id }?.name },
                                             mood = mood,
                                             toolsOpen = toolsOpen,
                                             onTap = { openId = if (openId == row.message.id) null else row.message.id },
@@ -523,6 +529,9 @@ fun ChatScreen(vm: ChatViewModel, focusTick: Int, onBack: () -> Unit, onSettings
             onOpenFile = vm::openAttachment,
             onRename = if (currentSession != null) ({ renamingSession = currentSession }) else null,
             onChangeModel = if (models.presets.isNotEmpty()) ({ showModels = true }) else null,
+            agentName = chatAgent?.name,
+            agentModel = chatAgent?.row?.model?.let { m -> models.presets.firstOrNull { it.name == m }?.label },
+            onChangeAgent = if (agentList.size > 1) ({ showAgents = true }) else null,
             // Only when the agent can compact (Phase 4): until then the command isn't offered.
             onCompress = if (chatId != null && commands.any { it.name == "/compact" }) ({ vm.send("/compact") }) else null,
         )
@@ -555,6 +564,7 @@ fun ChatScreen(vm: ChatViewModel, focusTick: Int, onBack: () -> Unit, onSettings
             // OpenRouter's prices only mean something on OpenRouter; your own server (often free, like Groq) shows none.
             catalog = if (io.github.erkanw.vault.provider.ProviderStore.state.value.kind == io.github.erkanw.vault.provider.ProviderKind.OpenRouter) catalog.models else emptyList(),
             catalogLoading = catalog.loading,
+            priced = io.github.erkanw.vault.provider.ProviderStore.state.value.kind == io.github.erkanw.vault.provider.ProviderKind.OpenRouter,
             choices = models,
             current = preset,
             enabled = !busy,
@@ -564,6 +574,20 @@ fun ChatScreen(vm: ChatViewModel, focusTick: Int, onBack: () -> Unit, onSettings
                 vm.chooseModel(it)
             },
             onDismiss = { showModels = false },
+        )
+    }
+
+    if (showAgents) {
+        AgentSheet(
+            agents = agentList,
+            current = chatAgentId,
+            models = models,
+            enabled = !busy,
+            onPick = {
+                showAgents = false
+                vm.chooseAgent(it)
+            },
+            onDismiss = { showAgents = false },
         )
     }
 
@@ -763,6 +787,8 @@ private fun DayDivider(label: String, modifier: Modifier = Modifier) {
 @Composable
 private fun MessageRow(
     row: ChatRow.Msg,
+    /** For an answer: the agent that wrote it, named under the bubble. */
+    agentName: String?,
     mood: BlobState,
     toolsOpen: Boolean,
     onTap: () -> Unit,
@@ -816,6 +842,11 @@ private fun MessageRow(
                 .pressable(onClick = onTap, shape = shape, pressedScale = 0.99f, rest = container, pressed = container, role = androidx.compose.ui.semantics.Role.Button)
                 .padding(horizontal = 16.dp, vertical = if (mine) 11.dp else 13.dp),
         ) { body(content) }
+        // Which agent answered (PLAN §6.16): chats can change agent, so each answer says whose it is.
+        if (!mine && !message.isError && !agentName.isNullOrBlank()) {
+            Text(agentName, style = VaultType.Caption, color = k.muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 6.dp, end = 6.dp, top = 4.dp))
+        }
         // The time lives with the tools: shown for the latest answer and for any message you tap, not under every bubble.
         AnimatedVisibility(
             visible = toolsOpen,

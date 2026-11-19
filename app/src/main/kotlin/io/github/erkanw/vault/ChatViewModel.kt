@@ -604,6 +604,24 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private val _chatAgent = MutableStateFlow<String?>(null)
     val chatAgent: StateFlow<String?> = _chatAgent.asStateFlow()
 
+    init {
+        // Whatever chat is on screen (also the one reopened at launch, or a fork): its own agent.
+        viewModelScope.launch {
+            _currentChatId.collect { id ->
+                if (id != null) runCatching { backend.sessionAgent(id) }.getOrNull()?.let { if (_currentChatId.value == id) _chatAgent.value = it }
+            }
+        }
+    }
+
+    /** The session page's Change agent: the chat on screen (or the next new one) talks to [agentId] from now on. */
+    fun chooseAgent(agentId: String) {
+        if (_busy.value) return
+        _chatAgent.value = agentId
+        val chat = _currentChatId.value ?: return
+        _sessions.update { list -> list.map { if (it.chatId == chat) it.copy(modelPreset = null) else it } }
+        viewModelScope.launch { runCatching { backend.setSessionAgent(chat, agentId) } }
+    }
+
     /** Opens a session from the drawer: its messages load, and the next message continues it. */
     fun openSession(chatId: String) {
         markChatSeen(chatId, maxOf(System.currentTimeMillis(), _sessions.value.firstOrNull { it.chatId == chatId }?.updatedMs ?: 0L))
@@ -780,8 +798,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private fun currentModelId(): String? {
         val choices = models.value
         val chat = _currentChatId.value
-        val name = _sessions.value.firstOrNull { it.chatId == chat }?.modelPreset ?: choices.active
-        return choices.presets.firstOrNull { it.name == name }?.model
+        val agentModel = _chatAgent.value?.let { id -> io.github.erkanw.vault.store.Agents.list.value.firstOrNull { it.id == id }?.row?.model }
+        return io.github.erkanw.vault.chat.shownPreset(choices, _sessions.value.firstOrNull { it.chatId == chat }?.modelPreset, agentModel)?.model
     }
 
     /** A message waiting for "Send anyway": this month's budget is used up and the budget asks first (PLAN §6.11). */
@@ -814,7 +832,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val media = files.mapNotNull { f -> f.dataUrl?.let { MediaPart(f.name, it) } }
         val sentMessage = ChatMessage(nextId++, Role.User, prompt, attachments = files.map { MessageAttachment(it.name, it.image, localPath = it.localPath) })
         val history = _messages.value.filter { !it.isError && (it.text.isNotEmpty() || it.attachments.isNotEmpty()) } + sentMessage
-        val reply = ChatMessage(nextId++, Role.Assistant, "")
+        val reply = ChatMessage(nextId++, Role.Assistant, "", agentId = _chatAgent.value)
         _messages.value = history + reply
         store.save(_messages.value)
         _busy.value = true
@@ -839,8 +857,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             try {
-                val agentId = activeChannel.value?.let { io.github.erkanw.vault.store.Agents.ofChannel(getApplication(), it.id) }
-                    ?: (if (activeChannel.value == null) io.github.erkanw.vault.store.Agents.selected(getApplication()) else null)
+                // The agent on screen: the chat's own once it has started, else the one chosen for the new chat.
+                val agentId = _chatAgent.value
+                    ?: activeChannel.value?.let { io.github.erkanw.vault.store.Agents.ofChannel(getApplication(), it.id) }
+                    ?: io.github.erkanw.vault.store.Agents.selected(getApplication())
                 backend.run(_currentChatId.value, TurnInput(prompt, media, sentMessage.attachments, activeChannel.value?.id, activeChannel.value?.let { ChannelLooks.look(it).let { l -> if (l.blurb.isBlank()) l.title else "${l.title} (${l.blurb})" } }, agentId = agentId)).collect { event ->
                     if (!here()) return@collect
                     when (event) {

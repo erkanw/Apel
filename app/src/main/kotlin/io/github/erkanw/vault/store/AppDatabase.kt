@@ -63,6 +63,8 @@ data class MessageEntity(
     /** "ok", "error" or "stopped". */
     val status: String = "ok",
     @ColumnInfo(name = "forked_from") val forkedFrom: Long? = null,
+    /** For an answer: the agent that wrote it (PLAN §6.16); null for the app's own answers and older ones. */
+    @ColumnInfo(name = "agent_id") val agentId: String? = null,
 )
 
 @Entity(
@@ -134,6 +136,10 @@ interface ChatDao {
 
     @Query("UPDATE sessions SET model_override = :preset WHERE id = :id")
     suspend fun setModel(id: String, preset: String?)
+
+    /** The agent a chat talks to (kept from its first message; changed on the session page). */
+    @Query("UPDATE sessions SET agent_id = :agent WHERE id = :id")
+    suspend fun setAgent(id: String, agent: String)
 
     @Query("UPDATE sessions SET summary = :summary, compacted_through = :through WHERE id = :id")
     suspend fun setCompaction(id: String, summary: String, through: Long)
@@ -406,7 +412,7 @@ interface AgentDao {
     suspend fun delete(id: String)
 
     /** A deleted agent's chats and jobs go to Apel. */
-    @Query("UPDATE sessions SET agent_id = NULL WHERE agent_id = :id")
+    @Query("UPDATE sessions SET agent_id = 'apel' WHERE agent_id = :id")
     suspend fun moveSessionsToApel(id: String)
 
     @Query("UPDATE automations SET agent_id = NULL WHERE agent_id = :id")
@@ -436,7 +442,7 @@ interface McpDao {
         AutomationEntity::class, AutomationRunEntity::class, UserDbEntity::class, DbAuditEntity::class,
         McpServerEntity::class, AgentEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -458,6 +464,21 @@ abstract class AppDatabase : RoomDatabase() {
             instance?.close()
             instance = null
             block()
+        }
+
+        /**
+         * Which agent wrote each answer. A chat outside a channel already knew its agent (null was Apel); its answers
+         * take that agent. A channel's chats followed the channel and stay unknown until their next message pins them.
+         */
+        val MIGRATION_8_9 = object : androidx.room.migration.Migration(8, 9) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `messages` ADD COLUMN `agent_id` TEXT")
+                db.execSQL("UPDATE `sessions` SET `agent_id` = 'apel' WHERE `agent_id` IS NULL AND `channel_id` IS NULL")
+                db.execSQL(
+                    "UPDATE `messages` SET `agent_id` = (SELECT s.`agent_id` FROM `sessions` s WHERE s.`id` = `messages`.`session_id`) " +
+                        "WHERE `role` = 'assistant' AND `status` != 'local'",
+                )
+            }
         }
 
         /** Phase 10: agents, and which agent each chat, job and answer belongs to. */
@@ -545,7 +566,7 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
-            instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "app.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8).build().also { instance = it }
+            instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "app.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9).build().also { instance = it }
         }
     }
 }

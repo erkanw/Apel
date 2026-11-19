@@ -79,13 +79,10 @@ internal fun AgentMark(look: BlobLook, size: androidx.compose.ui.unit.Dp = 28.dp
 fun AsAgent(vm: AgentsViewModel, id: String?, content: @Composable () -> Unit) {
     val agents by vm.agents.collectAsStateWithLifecycle()
     val agent = agents.firstOrNull { it.id == id && !it.isApel }
-    if (agent == null) {
-        content()
-        return
-    }
+    // One shape for every agent: switching agent (on the session page) keeps the screen's own state, such as an open page.
     androidx.compose.runtime.CompositionLocalProvider(
-        LocalAgentName provides agent.name,
-        io.github.erkanw.vault.mascot.LocalBlobLook provides agent.look,
+        LocalAgentName provides (agent?.name ?: LocalAgentName.current),
+        io.github.erkanw.vault.mascot.LocalBlobLook provides (agent?.look ?: io.github.erkanw.vault.mascot.LocalBlobLook.current),
         content = content,
     )
 }
@@ -474,12 +471,12 @@ fun TextEditorScreen(
     }
     Column(Modifier.fillMaxSize().background(k.background).imePadding()) {
         PageHeader(title, subtitle, back, action = { QuietButton("Save", { onSave(text) }, color = if (text != initial) k.text else k.muted) })
-        Text(hint, style = VaultType.Caption, color = k.muted, modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 4.dp, bottom = if (reset == null) 8.dp else 0.dp))
+        Text(hint, style = VaultType.Caption, color = k.muted, modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 4.dp))
         if (reset != null && text != reset.second) {
             Row(Modifier.padding(start = 8.dp)) { QuietButton(reset.first, { text = reset.second }, color = k.muted) }
         }
         // The well starts at a few lines and grows a line at a time with the text; the page scrolls, not the well.
-        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding()) {
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(top = 12.dp)) {
         BasicTextField(
             text, { text = it },
             textStyle = VaultType.Reading.copy(color = k.text),

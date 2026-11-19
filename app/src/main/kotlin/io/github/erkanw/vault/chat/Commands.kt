@@ -81,9 +81,9 @@ data class ModelChoices(
  * The preset the chat runs with: the one the session chose, else the one in use. A session that only carries the
  * "default" preset (a placeholder for "nothing chosen") counts as not having chosen.
  */
-fun shownPreset(choices: ModelChoices, sessionPreset: String?): ModelPreset? {
+fun shownPreset(choices: ModelChoices, sessionPreset: String?, agentPreset: String? = null): ModelPreset? {
     val own = choices.presets.firstOrNull { it.name == sessionPreset && !it.isDefault }
-    return own ?: choices.presets.firstOrNull { it.name == choices.active }
+    return own ?: choices.presets.firstOrNull { it.name == agentPreset } ?: choices.presets.firstOrNull { it.name == choices.active }
 }
 
 /**

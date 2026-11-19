@@ -53,6 +53,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -296,6 +298,8 @@ fun ModelSheet(
     /** OpenRouter's catalogue, for each model's price per million tokens. Empty while it loads or if it can't be reached. */
     catalog: List<io.github.erkanw.vault.openrouter.CatalogModel> = emptyList(),
     catalogLoading: Boolean = false,
+    /** False with your own server: it has no price list, so no price lines at all. */
+    priced: Boolean = true,
 ) {
     val k = MaterialTheme.vault
     val view = LocalView.current
@@ -330,9 +334,9 @@ fun ModelSheet(
                         Text(preset.label, color = k.text, style = VaultType.Row)
                         if (preset.model.isNotBlank()) {
                             Text(preset.model, color = k.muted, style = VaultType.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            val priced = io.github.erkanw.vault.openrouter.findCatalogModel(catalog, preset.model)
-                            when {
-                                priced != null -> Text(io.github.erkanw.vault.openrouter.priceDetail(priced), color = k.text, style = VaultType.Caption, maxLines = 1)
+                            val found = io.github.erkanw.vault.openrouter.findCatalogModel(catalog, preset.model)
+                            if (priced) when {
+                                found != null -> Text(io.github.erkanw.vault.openrouter.priceDetail(found), color = k.text, style = VaultType.Caption, maxLines = 1)
                                 catalogLoading -> Text("Price loading…", color = k.muted, style = VaultType.Caption)
                                 catalog.isEmpty() -> Text("Price unavailable", color = k.muted, style = VaultType.Caption)
                             }
@@ -349,6 +353,61 @@ fun ModelSheet(
                     "Prices are in US dollars per million tokens, from OpenRouter (the cheapest provider that keeps no data).",
                     color = k.muted, style = VaultType.Caption, modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp),
                 )
+            }
+            if (!enabled) {
+                Text("Wait for ${LocalAgentName.current} to finish answering to switch.", color = k.muted, style = VaultType.Caption, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+            }
+        }
+    }
+}
+
+/**
+ * The session page's Change agent: every agent, the chat's own ticked. Each says which model it answers with; the
+ * chat then uses that agent's model (a model picked for the chat before is dropped).
+ */
+@Composable
+fun AgentSheet(
+    agents: List<io.github.erkanw.vault.store.AgentInfo>,
+    current: String?,
+    models: ModelChoices,
+    enabled: Boolean,
+    onPick: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val k = MaterialTheme.vault
+    val view = LocalView.current
+    VaultSheet(onDismiss = onDismiss, title = "Agent") {
+        Column(Modifier.navigationBarsPadding().padding(bottom = 4.dp)) {
+            for (agent in agents) {
+                val selected = agent.id == current
+                val model = agent.row.model?.let { m -> models.presets.firstOrNull { it.name == m }?.label }
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                        .alpha(if (enabled || selected) 1f else 0.5f)
+                        .semantics { this.selected = selected }
+                        .pressable(
+                            onClick = {
+                                if (enabled && !selected) {
+                                    Haptics.tap(view)
+                                    onPick(agent.id)
+                                }
+                            },
+                            shape = RoundedCornerShape(14.dp), pressedScale = 0.985f,
+                            rest = if (selected) k.surfaceHigh else androidx.compose.ui.graphics.Color.Transparent, pressed = k.pressed,
+                        )
+                        .padding(horizontal = 12.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AgentMark(agent.look)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(agent.name, color = k.text, style = VaultType.Row, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(model ?: "Main model", color = k.muted, style = VaultType.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (selected) Icon(VaultIcons.Check, "In use", tint = k.text, modifier = Modifier.size(20.dp))
+                }
             }
             if (!enabled) {
                 Text("Wait for ${LocalAgentName.current} to finish answering to switch.", color = k.muted, style = VaultType.Caption, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))

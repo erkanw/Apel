@@ -23,7 +23,7 @@ import java.util.zip.ZipOutputStream
  */
 object Backup {
     /** The database version this build reads; a backup from a newer one is refused. Keep it equal to [AppDatabase]'s. */
-    const val DB_VERSION = 8
+    const val DB_VERSION = 9
 
     private const val STAGING = "restore"
 

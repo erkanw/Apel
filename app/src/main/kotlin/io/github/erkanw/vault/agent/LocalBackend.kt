@@ -147,7 +147,8 @@ class LocalBackend(context: Context) : AgentBackend {
         val kept = messages.take(cut)
         val id = UUID.randomUUID().toString()
         val now = System.currentTimeMillis()
-        db.insertSession(SessionEntity(id, title, now, now, titleSet = true, channelId = null, modelOverride = source.modelOverride, forkBoundary = kept.size))
+        db.insertSession(SessionEntity(id, title, now, now, titleSet = true, channelId = null, modelOverride = source.modelOverride, forkBoundary = kept.size,
+            agentId = source.agentId ?: sessionAgent(source.id)))
         for (m in kept) copyMessage(m, id)
         return id
     }
@@ -180,7 +181,8 @@ class LocalBackend(context: Context) : AgentBackend {
         val session = chatId?.let { db.session(it) } ?: SessionEntity(
             id = UUID.randomUUID().toString(), title = auto?.title ?: titleFrom(input.text).ifBlank { NEW_SESSION_TITLE }, created = now, updated = now,
             titleSet = auto != null, channelId = input.channelId, modelOverride = if (auto == null) pendingPreset else null,
-            agentId = input.agentId?.takeIf { it != io.github.erkanw.vault.agent.AgentPresets.APEL },
+            // The agent of the first message stays the chat's agent (PLAN §6.16), also in a channel.
+            agentId = input.agentId ?: io.github.erkanw.vault.agent.AgentPresets.APEL,
         ).also {
             db.insertSession(it)
             if (auto == null) pendingPreset = null
@@ -231,8 +233,7 @@ class LocalBackend(context: Context) : AgentBackend {
             app,
             when {
                 auto != null -> auto.agentId
-                session.channelId != null -> io.github.erkanw.vault.store.Agents.ofChannel(app, session.channelId)
-                else -> session.agentId
+                else -> session.agentId ?: pinAgent(session)
             },
         )
         val chain = buildList {
@@ -245,7 +246,7 @@ class LocalBackend(context: Context) : AgentBackend {
         }
         if (chain.isEmpty()) {
             val message = "No model chosen yet. Add one in Settings, Models."
-            saveAssistant(session.id, message, null, 0, 0, null, "error", emptyList())
+            saveAssistant(session.id, message, null, 0, 0, null, "error", emptyList(), agent.id)
             emit(TurnEvent.Error(message))
             return@flow
         }
@@ -254,7 +255,7 @@ class LocalBackend(context: Context) : AgentBackend {
         val first = chain.first()
         if (input.media.any { it.dataUrl.startsWith("data:image/") } && !reads(first.model, "image")) {
             val message = "${first.label} can’t read pictures. Pick another model in the chat’s model list."
-            saveAssistant(session.id, message, first.model, 0, 0, null, "error", emptyList())
+            saveAssistant(session.id, message, first.model, 0, 0, null, "error", emptyList(), agent.id)
             emit(TurnEvent.Error(message))
             return@flow
         }
@@ -450,11 +451,11 @@ class LocalBackend(context: Context) : AgentBackend {
             val answer = shown.trim()
             if (answer.isEmpty()) {
                 val message = withFreeNote("${used.label} sent an empty answer. Try again, or pick another model.", used.model)
-                saveAssistant(session.id, message, used.model, tokensIn, tokensOut, cost, "error", steps)
+                saveAssistant(session.id, message, used.model, tokensIn, tokensOut, cost, "error", steps, agent.id)
                 logUsage(used.model, session.id, tokensIn, tokensOut, cost, ok = false, automationId = auto?.id, requests = requests, agentId = agent.id)
                 emit(TurnEvent.Error(message))
             } else {
-                saveAssistant(session.id, answer, used.model, tokensIn, tokensOut, cost, "ok", steps)
+                saveAssistant(session.id, answer, used.model, tokensIn, tokensOut, cost, "ok", steps, agent.id)
                 logUsage(used.model, session.id, tokensIn, tokensOut, cost, ok = true, automationId = auto?.id, requests = requests, agentId = agent.id)
                 emit(TurnEvent.TurnEnd(answer))
             }
@@ -464,13 +465,13 @@ class LocalBackend(context: Context) : AgentBackend {
             ctx.inFlight?.let { steps += AgentStep(StepKind.Tool, "$it\n→ Stopped") }
             if (reasoning.isNotBlank()) steps.add(0, AgentStep(StepKind.Thinking, reasoning.trim().take(io.github.erkanw.vault.chat.MAX_STEP_CHARS)))
             withContext(NonCancellable) {
-                saveAssistant(session.id, partial.ifEmpty { "Stopped." }, used.model, tokensIn, tokensOut, cost, "stopped", steps)
+                saveAssistant(session.id, partial.ifEmpty { "Stopped." }, used.model, tokensIn, tokensOut, cost, "stopped", steps, agent.id)
                 if (tokensIn > 0) logUsage(used.model, session.id, tokensIn, tokensOut, cost, ok = false, automationId = auto?.id, requests = requests, agentId = agent.id)
             }
             throw e
         } catch (e: ProviderException) {
             val message = withFreeNote(e.message ?: "The provider failed.", used.model)
-            saveAssistant(session.id, message, used.model, tokensIn, tokensOut, cost, "error", steps)
+            saveAssistant(session.id, message, used.model, tokensIn, tokensOut, cost, "error", steps, agent.id)
             if (tokensIn > 0) logUsage(used.model, session.id, tokensIn, tokensOut, cost, ok = false, automationId = auto?.id, requests = requests, agentId = agent.id)
             emit(TurnEvent.Error(message))
         } finally {
@@ -595,7 +596,21 @@ class LocalBackend(context: Context) : AgentBackend {
     suspend fun hasSession(chatId: String): Boolean = db.session(chatId) != null
 
     override suspend fun sessionAgent(chatId: String): String? = db.session(chatId)?.let { s ->
-        s.channelId?.let { io.github.erkanw.vault.store.Agents.ofChannel(app, it) } ?: s.agentId.takeIf { s.channelId == null }
+        s.agentId ?: s.channelId?.let { io.github.erkanw.vault.store.Agents.ofChannel(app, it) } ?: io.github.erkanw.vault.agent.AgentPresets.APEL
+    }
+
+    override suspend fun setSessionAgent(chatId: String, agentId: String) {
+        if (db.session(chatId) == null) return
+        db.setAgent(chatId, agentId)
+        // The new agent answers with its own model; a model picked for the chat before belonged to the old one.
+        db.setModel(chatId, null)
+    }
+
+    /** A channel chat from before agents were kept per chat: it takes the channel's agent now, and keeps it. */
+    private suspend fun pinAgent(session: SessionEntity): String {
+        val id = session.channelId?.let { io.github.erkanw.vault.store.Agents.ofChannel(app, it) } ?: io.github.erkanw.vault.agent.AgentPresets.APEL
+        db.setAgent(session.id, id)
+        return id
     }
 
     /** The id of the latest answer in [chatId], to open the chat at it from the run log. */
@@ -663,10 +678,10 @@ class LocalBackend(context: Context) : AgentBackend {
         return (m.message.text + "\n\n(Attached earlier: $files.)").trim()
     }
 
-    private suspend fun saveAssistant(sessionId: String, text: String, model: String?, tokensIn: Long, tokensOut: Long, cost: Double?, status: String, steps: List<AgentStep>) {
+    private suspend fun saveAssistant(sessionId: String, text: String, model: String?, tokensIn: Long, tokensOut: Long, cost: Double?, status: String, steps: List<AgentStep>, agentId: String) {
         val id = db.insertMessage(
             MessageEntity(sessionId = sessionId, role = "assistant", text = text, created = System.currentTimeMillis(), model = model,
-                tokensIn = tokensIn, tokensOut = tokensOut, cost = cost, status = status),
+                tokensIn = tokensIn, tokensOut = tokensOut, cost = cost, status = status, agentId = agentId),
         )
         if (steps.isNotEmpty()) db.insertSteps(steps.mapIndexed { i, s -> StepEntity(id, i, stepKindName(s.kind), s.text) })
         db.touch(sessionId, System.currentTimeMillis())
@@ -691,6 +706,7 @@ class LocalBackend(context: Context) : AgentBackend {
             id = e.id, role = if (e.role == "user") Role.User else Role.Assistant, text = e.text, isError = e.status == "error", createdAt = e.created,
             attachments = m.attachments.map { a -> MessageAttachment(a.name, image = a.kind == "image", video = a.kind == "video", localPath = a.path) },
             steps = m.steps.sortedBy { it.index }.map { s -> AgentStep(stepKindOf(s.kind), s.title) },
+            agentId = e.agentId,
         )
     }
 

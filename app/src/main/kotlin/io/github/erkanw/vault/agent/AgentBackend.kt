@@ -50,6 +50,9 @@ interface AgentBackend {
     /** The agent a chat talks to (PLAN §6.16); null: Apel. */
     suspend fun sessionAgent(chatId: String): String? = null
 
+    /** Moves a chat to another agent: its next answers come from [agentId], with that agent's own model. */
+    suspend fun setSessionAgent(chatId: String, agentId: String) {}
+
     /** False while no provider is connected: pages say so instead of loading. */
     val connected: Boolean
 

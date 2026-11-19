@@ -18,6 +18,8 @@ data class ChatMessage(
     val attachments: List<MessageAttachment> = emptyList(),
     /** For a reply: the tools the agent called and the notes it sent on the way (see AgentSteps.kt). */
     val steps: List<AgentStep> = emptyList(),
+    /** For a reply: the agent that wrote it, named under it (PLAN §6.16). */
+    val agentId: String? = null,
 )
 
 /** The conversation, kept in the app's private storage so it is there after a restart. */
