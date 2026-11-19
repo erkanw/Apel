@@ -1,51 +1,86 @@
-# Apel
+<p align="center">
+  <img src="fastlane/metadata/android/en-US/images/icon.png" width="96" alt="Apel's icon: a small blob">
+</p>
 
-Your own AI agent, on your phone. Apel runs entirely on Android: your chats, channels, files, skills, automations,
-tools, databases and memory live in the app. You connect your own AI provider (OpenRouter by default, or any
-OpenAI-compatible server) and pay it directly, only for what you use. There is no server, no account with the maker
-and no telemetry.
+<h1 align="center">Apel</h1>
 
-> **Status: 0.2.0 adds agents; 0.1.0 was the first release.** Everything below works on a test phone. Releases are signed APKs on GitHub;
-> F-Droid comes next. See [CHANGELOG.md](CHANGELOG.md).
+<p align="center">
+  <b>Your own AI agent, on your phone.</b><br>
+  Chats, agents, files, databases and scheduled jobs that live on your Android phone,<br>
+  with the AI provider you choose. No server, no account with us, no telemetry.
+</p>
 
-## What it does
+<p align="center">
+  <a href="https://github.com/erkanw/apel/releases/latest">Download the latest APK</a> ·
+  <a href="CHANGELOG.md">What’s new</a> ·
+  <a href="PRIVACY.md">Privacy</a>
+</p>
 
-- **Chat** with streaming answers, the agent's steps (tool calls, reasoning) shown as they happen, attachments
-  (pictures, PDFs, text files), dictation, edit and ask again (a fork of the chat), and Markdown.
-- **Channels**: chats kept apart under their own name and colour. Two starters, Daily brief and Notes.
-- **Tools**: web search, reading pages, files in its workspace, databases, memory, automations, skills,
-  notifications, remote tool servers (MCP over HTTP, added with an address and an optional token), and an
-  experimental hidden browser that can open, read, click and type on public pages (off until you turn it on). Each
-  tool is Allowed, Ask first or Off; risky actions wait for your OK.
-- **Files**: the agent's workspace, which you can browse, edit, import into and share from.
-- **Skills**: instructions the agent follows, in the Agent Skills layout (`SKILL.md`); create, edit, import, export.
-- **Agents**: several agents for different jobs (a study companion, a researcher, a training coach…), each with its own
-  name, look, model, system prompt and memory, and the tools, skills and databases you allow it. Start from a template
-  or blank; pick which one a chat, a channel or an automation uses.
-- **Automations**: scheduled jobs that run with the screen off and post their result to a channel.
-- **Databases**: SQLite databases the agent can read or write under rules you set, with a table browser, a SQL
-  console, CSV import and export, and backups.
-- **Usage and budget**: what each model and each automation cost, and a monthly limit.
-- **The mascot**: a Blob Atelier blob you can shape, colour and finish yourself, on Home and on a home-screen widget.
-- **Backup**: everything except keys and tokens in one zip in Downloads/Apel (Settings → Backup). On a new phone,
-  "Restore a backup" on the welcome screen puts it all back; then sign in to your provider again.
+<p align="center">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="200" alt="Home: the blob and “What should Apel do?”">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="200" alt="A chat with a table, code and saved files">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="200" alt="Automations on a schedule">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="200" alt="Usage: what each model cost">
+</p>
 
-## Install
+## What is Apel?
 
-Download the APK from the [releases page](https://github.com/erkanw/apel/releases) and open it on your phone (Android
-10 or newer). You need an AI provider: sign in to OpenRouter in the app (its free models cost nothing, within their
-daily limits), or connect your own OpenAI-compatible server.
+Apel is an AI agent that runs on your phone instead of in someone’s cloud. It can do more than chat: it searches
+and reads the web, keeps notes and files, fills databases, remembers what matters to you, and runs jobs on a schedule,
+such as a morning brief, while the screen is off.
+
+You bring the AI model. Sign in to [OpenRouter](https://openrouter.ai) (hundreds of models with one account, free
+models included) or connect any OpenAI-compatible server, such as Groq or your own. You pay the provider directly, only
+for what you use; Apel itself is free and open source.
+
+## Features
+
+- **Agents for different jobs.** Make a study companion, a researcher, a training coach or your own. Each has its own
+  name, look, model, instructions and memory, and only the tools, skills and databases you allow it. A chat keeps the
+  agent it started with, and every answer says which agent wrote it.
+- **Chat that shows its work.** Answers stream in with the steps behind them (searches, files read, tools used).
+  Attach pictures, PDFs and text files, dictate, edit a message and ask again.
+- **Channels** keep chats on one subject together, each with its own colour and agent.
+- **Files and databases.** The agent has its own folder and SQLite databases on the phone. You can browse and edit
+  them, import and export CSV, or just describe what you want to track and let the agent set it up.
+- **Automations** run a prompt on a schedule and post the answer in a chat or channel.
+- **Tools and skills.** Web search, web pages, files, databases, memory, notifications, an experimental browser, and
+  remote tool servers (MCP over HTTP). Each tool is allowed, asks first, or is off. Skills are instructions the agent
+  follows for tasks you repeat.
+- **Usage and budget.** See what each model, agent and automation cost, and set a monthly limit.
+- **A mascot you shape yourself.** A soft blob whose shape, colour and finish you choose, on Home and on a home-screen
+  widget.
+- **Backup and restore** of everything except keys, in one zip file.
+
+## Get started
+
+1. Download the APK from the [latest release](https://github.com/erkanw/apel/releases/latest) and open it on
+   your phone (Android 10 or newer). Android asks once to allow installs from your browser or file manager.
+2. Open Apel and follow the welcome: connect a provider, pick a first model, tell it your name, and give your agent a
+   name and a look. A short walkthrough of the app follows.
+3. Ask it something.
+
+Free models on OpenRouter cost nothing within their daily limits, but they are slower and fail more often on long
+tasks. A paid model costs a fraction of a cent to a few cents per answer; the Usage page shows exactly what you spent.
 
 ## Privacy
 
-Everything stays on the phone. The only network calls go to the AI provider you chose, to web pages when the agent
-searches or reads them, and to tool servers you add. Keys are kept in the Android Keystore and never leave the host
-they belong to. By default, OpenRouter requests only go to providers that keep no data. The full statement is in
-[PRIVACY.md](PRIVACY.md) and in the app (Settings → About).
+Your chats, files, databases and memory stay on the phone. Apel only connects to the AI provider you chose, to web pages
+when the agent reads or searches them, and to tool servers you add. Keys are kept in the Android Keystore. By default,
+OpenRouter only routes to providers that don’t keep your data. There are no analytics, no ads and no account. The full
+statement is in [PRIVACY.md](PRIVACY.md) and in the app (Settings → About).
 
-## Build and run
+## Status
 
-You need JDK 21 and the Android SDK (compileSdk 35). Then:
+Apel is young: **0.2.0** added agents, **0.1.0** was the first release. Releases are signed APKs here on GitHub;
+F-Droid is planned. There is no iPhone version. See the [changelog](CHANGELOG.md) for what changed.
+
+Found a bug or have an idea? [Open an issue](https://github.com/erkanw/apel/issues). In the app, Settings → About →
+“Copy diagnostics” gives a short report without any of your content that you can paste into it.
+
+## Build it yourself
+
+You need JDK 21 and the Android SDK (compileSdk 35).
 
 ```
 ./gradlew :app:assembleDebug :app:testDebugUnitTest
@@ -58,50 +93,46 @@ debug build and restart the app:
 adb shell run-as io.github.erkanw.vault touch files/demo
 ```
 
-Write `busy`, `error` or `empty` into that file for those states; delete it to turn demo mode off. The release build
-has no demo data.
-
-A release build is signed when a `keystore.properties` file sits next to `settings.gradle.kts` (it is
-gitignored, like the keystore itself):
-
-```
-storeFile=../keys/apel-release.jks
-storePassword=…
-keyAlias=apel
-keyPassword=…
-```
-
-Then `./gradlew :app:assembleRelease` writes `app/build/outputs/apk/release/app-release.apk`. Without the file the
-release APK is unsigned, which is how F-Droid builds it (F-Droid signs with its own key).
+Write `busy`, `error` or `empty` into that file for those states; delete it to turn demo mode off. Release builds have no
+demo data. `./gradlew :app:assembleRelease` makes an unsigned release APK, as F-Droid builds it; it is signed when a
+gitignored `keystore.properties` (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`) sits next to
+`settings.gradle.kts`.
 
 Debug builds also have three galleries for design review: `KitGalleryActivity` (components), `MascotGalleryActivity`
-(the mascot's states) and `WidgetGalleryActivity` (the widgets).
+(the mascot’s states) and `WidgetGalleryActivity` (the widgets).
 
-## Layout
+<details>
+<summary>Where things are in the code</summary>
 
 ```
 app/src/main/kotlin/io/github/erkanw/vault/
   MainActivity, AppGraph       the activity, and the one place long-lived parts are built
   ChatViewModel                chat, sessions, channels, composer, dictation
   PagesViewModel               Files, Skills, Automations, Tools
+  AgentsViewModel              the agents and each agent's page
   SettingsViewModel            appearance, notifications, widget, models, backup
-  agent/                       AgentBackend (what the screens ask of the agent) and TurnEvent (a turn, as it streams)
+  agent/                       the agent loop, prompts, and what the screens ask of it
+  automation/                  scheduled jobs and the nightly memory tidy
   chat/                        chat models and pure helpers (sessions, channels, attachments, markdown, commands)
   mascot/                      the blob: shapes, engine, painter, flat icons, states
+  tools/                       the agent's tools
   ui/                          the screens and the component kit
   widget/                      the mascot widget and the usage widget
-  openrouter/                  the OpenRouter catalogue and usage
-  store/                       the database, the agent's profile, backup and diagnostics
+  openrouter/, provider/       the OpenRouter catalogue and sign-in, and your own server
+  store/                       the database, agents, profile, backup and diagnostics
+  userdb/, usage/              your databases, and what each answer cost
 app/src/debug/                 demo mode (DemoBackend), galleries
-app/src/release/               the empty twin of demo mode
 fastlane/metadata/android/     the F-Droid listing (descriptions, changelogs, screenshots)
 ```
 
-The design system is in [DESIGN.md](DESIGN.md); the product brief is in [PRODUCT.md](PRODUCT.md).
+The design system is in [DESIGN.md](DESIGN.md); the product brief is in [PRODUCT.md](PRODUCT.md). The code’s package
+is `io.github.erkanw.vault`, after the project’s working name.
+
+</details>
 
 ## Licence
 
 Apache License 2.0, see [LICENSE](LICENSE) and [NOTICE](NOTICE). The mascot is a port of
-[Blob Atelier](https://github.com/victoriawu-77/blob-atelier) by Victoria Wu (MIT); it and the other third-party
-material (Inter, Lucide, the AndroidX, Kotlin and OkHttp libraries) are listed in [THIRD_PARTY.md](THIRD_PARTY.md),
-with their licences in `licenses/`.
+[Blob Atelier](https://github.com/victoriawu-77/blob-atelier) by Victoria Wu (MIT). It and the other third-party
+material (Inter, Lucide, the AndroidX, Kotlin and OkHttp libraries) are listed in [THIRD_PARTY.md](THIRD_PARTY.md), with
+their licences in `licenses/`.
