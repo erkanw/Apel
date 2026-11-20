@@ -88,17 +88,27 @@ class UserDbCore(val home: File, private val registry: DbRegistry, private val c
     private val locks = ConcurrentHashMap<String, Any>()
     private fun lock(name: String) = locks.getOrPut(name) { Any() }
 
-    private fun file(name: String) = File(home, "$name.db")
+    // Every path is built from a checked name: registry rows can come from a restored backup, so they are never trusted.
+    private fun file(name: String) = File(home, "${SqlRules.checkDbName(name)}.db")
     private val archiveDir get() = File(home, "archive")
-    private fun backupDir(name: String) = File(home, "backups/$name").apply { mkdirs() }
+    private fun backupDir(name: String) = File(home, "backups/${SqlRules.checkDbName(name)}").apply { mkdirs() }
+    private fun archivedFile(name: String): File {
+        val stored = registry.get(name)?.archivedFile ?: throw DbException("“$name” isn’t archived.")
+        if (!SqlRules.isArchivedFileName(stored)) throw DbException("The archived file of “$name” has a name this app doesn’t make.")
+        return File(archiveDir, stored)
+    }
 
     // ---- the registry ----
 
-    fun list(includeArchived: Boolean = false): List<UserDb> = registry.all().filter { includeArchived || it.archivedFile == null }.sortedBy { it.name }
+    fun list(includeArchived: Boolean = false): List<UserDb> = registry.all()
+        .filter { SqlRules.isDbName(it.name) && (it.archivedFile == null || SqlRules.isArchivedFileName(it.archivedFile)) }
+        .filter { includeArchived || it.archivedFile == null }
+        .sortedBy { it.name }
 
     fun agentVisible(): List<UserDb> = list().filter { it.access != Access.None }
 
     private fun entry(name: String): UserDb {
+        SqlRules.checkDbName(name)
         val db = registry.get(name)?.takeIf { it.archivedFile == null } ?: throw DbException("There is no database called “$name”.")
         if (!file(name).isFile) throw DbException("The file of “$name” is missing.")
         return db
@@ -141,8 +151,9 @@ class UserDbCore(val home: File, private val registry: DbRegistry, private val c
     }
 
     fun restoreArchived(name: String) = synchronized(lock(name)) {
+        SqlRules.checkDbName(name)
         val db = registry.get(name)?.takeIf { it.archivedFile != null } ?: throw DbException("“$name” isn’t archived.")
-        val from = File(archiveDir, db.archivedFile!!)
+        val from = archivedFile(name)
         if (!from.isFile) throw DbException("The archived file of “$name” is missing.")
         if (file(name).exists()) throw DbException("A database file called “$name.db” is already there.")
         if (!from.renameTo(file(name))) throw DbException("Couldn’t restore “$name”.")
@@ -152,9 +163,10 @@ class UserDbCore(val home: File, private val registry: DbRegistry, private val c
 
     /** Deletes an archived database for good: its file, its backups and its registry entry. */
     fun deleteArchived(name: String) = synchronized(lock(name)) {
-        val db = registry.get(name)?.takeIf { it.archivedFile != null } ?: throw DbException("Only an archived database can be deleted.")
-        File(archiveDir, db.archivedFile!!).delete()
-        File(home, "backups/$name").deleteRecursively()
+        SqlRules.checkDbName(name)
+        registry.get(name)?.takeIf { it.archivedFile != null } ?: throw DbException("Only an archived database can be deleted.")
+        archivedFile(name).delete()
+        backupDir(name).deleteRecursively()
         registry.remove(name)
     }
 

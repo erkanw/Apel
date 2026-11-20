@@ -20,10 +20,13 @@ object Workspace {
     fun trash(context: Context) = File(context.filesDir, "trash").apply { mkdirs() }
 
     /** [path] (relative, as the agent writes it) inside the workspace, or a [ToolException]. */
-    fun resolve(context: Context, path: String, forWrite: Boolean = false): File {
+    fun resolve(context: Context, path: String, forWrite: Boolean = false): File = resolve(root(context), path, forWrite)
+
+    /** [resolve] against the folder [workspace] itself (the unit tests use a temporary one). */
+    internal fun resolve(workspace: File, path: String, forWrite: Boolean = false): File {
         val clean = path.trim().trimStart('/').replace('\\', '/')
         if (clean.split('/').any { it == ".." }) throw ToolException("Paths stay inside the workspace: no “..”.")
-        val root = root(context).canonicalFile
+        val root = workspace.canonicalFile
         val file = File(root, clean)
         val canonical = file.canonicalFile
         if (canonical != root && !canonical.path.startsWith(root.path + File.separator)) throw ToolException("That path is outside the workspace.")
@@ -33,10 +36,14 @@ object Workspace {
             if (Files.isSymbolicLink(f.toPath())) throw ToolException("Links aren’t followed.")
             f = f.parentFile
         }
-        val top = clean.substringBefore('/')
-        if (forWrite && (top == "memory" || top == "skills")) throw ToolException("Use the memory tools for memory/; skills come later.")
+        // The top folder of the resolved path, not of what the agent typed: "./skills/x" lands in skills/ too.
+        val top = canonical.relativeTo(root).invariantSeparatorsPath.substringBefore('/')
+        if (forWrite && isGuardedTop(top)) throw ToolException("Use the memory tools for memory/; skills come later.")
         return canonical
     }
+
+    /** `memory/` and `skills/` are written only by their own tools. */
+    internal fun isGuardedTop(top: String) = top == "memory" || top == "skills"
 
     fun relative(context: Context, file: File): String = file.canonicalFile.relativeTo(root(context).canonicalFile).path.replace('\\', '/')
 
@@ -137,15 +144,22 @@ object FileTools {
         override fun mustAsk(args: JSONObject, ctx: ToolContext): ApprovalAsk? = Write.mustAsk(args, ctx)?.let { ApprovalAsk("Change ${args.optString("path").substringAfterLast('/')}, a file you made", args.optString("path")) }
         override suspend fun run(args: JSONObject, ctx: ToolContext): String {
             val file = Workspace.resolve(ctx.app, args.need("path"), forWrite = true)
-            val text = Workspace.readText(file)
-            val old = args.need("old_text")
+            replaceOnce(file, args.need("old_text"), args.optString("new_text"))
+            return "Edited " + Workspace.relative(ctx.app, file) + "."
+        }
+
+        /** Replaces the one [old] in [file] with [new], reading the whole file: never readText's shortened copy, which would cut it off. */
+        internal fun replaceOnce(file: File, old: String, new: String) {
+            if (old.isEmpty()) throw ToolException("Missing “old_text”.")
+            if (!file.isFile) throw ToolException("No file there.")
+            if (file.length() > Workspace.MAX_WRITE) throw ToolException("That file is more than 1 MB; it can’t be edited in place.")
+            val text = file.readText()
             var count = 0
             var at = text.indexOf(old)
             while (at >= 0) { count++; at = text.indexOf(old, at + 1) }
             if (count == 0) throw ToolException("old_text isn’t in the file. Read it again and copy the text exactly.")
             if (count > 1) throw ToolException("old_text appears $count times; include more of the text around it.")
-            file.writeText(text.replace(old, args.optString("new_text")))
-            return "Edited " + Workspace.relative(ctx.app, file) + "."
+            file.writeText(text.replace(old, new))
         }
     }
 

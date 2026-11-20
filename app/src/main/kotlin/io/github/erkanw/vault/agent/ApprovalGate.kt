@@ -15,8 +15,11 @@ import java.util.UUID
 object ApprovalGate {
     enum class Answer { Allow, AllowAlways, Deny, Timeout }
 
-    /** [canAlways]: whether "Always allow this tool" is offered (not when something other than the level asked). */
-    data class Request(val id: String, val sessionId: String, val tool: String, val summary: String, val detail: String, val canAlways: Boolean = true)
+    /**
+     * [canAlways]: whether "Always allow this tool" is offered (not when something other than the level asked).
+     * [unattended]: asked by notification (an automation, or the app wasn't on screen), so Allow needs the fingerprint.
+     */
+    data class Request(val id: String, val sessionId: String, val tool: String, val summary: String, val detail: String, val canAlways: Boolean = true, val unattended: Boolean = false)
 
     private const val TIMEOUT_MS = 30 * 60_000L
 
@@ -27,8 +30,8 @@ object ApprovalGate {
     val pending: StateFlow<List<Request>> = _pending.asStateFlow()
 
     /** Suspends until the user answers (or the time runs out, which is a no). */
-    suspend fun ask(sessionId: String, tool: String, summary: String, detail: String, canAlways: Boolean = true, id: String = UUID.randomUUID().toString()): Answer {
-        val request = Request(id, sessionId, tool, summary, detail, canAlways)
+    suspend fun ask(sessionId: String, tool: String, summary: String, detail: String, canAlways: Boolean = true, id: String = UUID.randomUUID().toString(), unattended: Boolean = false): Answer {
+        val request = Request(id, sessionId, tool, summary, detail, canAlways, unattended)
         val answer = CompletableDeferred<Answer>()
         synchronized(waiting) { waiting[request.id] = answer }
         _pending.update { it + request }
@@ -39,6 +42,13 @@ object ApprovalGate {
             _pending.update { list -> list.filterNot { it.id == request.id } }
         }
     }
+
+    /**
+     * Whether answering [request] with [allow] must first pass the fingerprint check (PLAN §10): Allow or Always allow
+     * for a request that came by notification, when nobody was necessarily watching. Deny never does.
+     */
+    fun needsBiometrics(request: Request, allow: Answer): Boolean =
+        request.unattended && (allow == Answer.Allow || allow == Answer.AllowAlways)
 
     fun answer(id: String, answer: Answer) {
         synchronized(waiting) { waiting[id] }?.complete(answer)

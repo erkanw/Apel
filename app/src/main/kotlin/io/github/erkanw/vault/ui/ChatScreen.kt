@@ -439,7 +439,16 @@ fun ChatScreen(vm: ChatViewModel, focusTick: Int, onBack: () -> Unit, onSettings
                     ApprovalRequest(r.id, r.tool, r.summary, r.detail),
                     sending = false,
                     onAllow = { always ->
-                        io.github.erkanw.vault.agent.ApprovalGate.answer(r.id, if (always) io.github.erkanw.vault.agent.ApprovalGate.Answer.AllowAlways else io.github.erkanw.vault.agent.ApprovalGate.Answer.Allow)
+                        val gate = io.github.erkanw.vault.agent.ApprovalGate
+                        val answer = if (always) io.github.erkanw.vault.agent.ApprovalGate.Answer.AllowAlways else io.github.erkanw.vault.agent.ApprovalGate.Answer.Allow
+                        val request = ApprovalRequest(r.id, r.tool, r.summary, r.detail)
+                        val activity = context.findActivity()
+                        when {
+                            // Asked by notification (an automation, or the app was away): only after the fingerprint (PLAN §10).
+                            !gate.needsBiometrics(r, answer) -> gate.answer(r.id, answer)
+                            activity == null -> vm.showNotice("Couldn't open the fingerprint prompt.")
+                            else -> allowWithBiometrics(activity, request, onAllowed = { gate.answer(r.id, answer) }, onFailed = vm::showNotice)
+                        }
                     },
                     onDeny = { io.github.erkanw.vault.agent.ApprovalGate.answer(r.id, io.github.erkanw.vault.agent.ApprovalGate.Answer.Deny) },
                     // At most a third of the screen, so the chat and the composer stay in view with the keyboard up.
