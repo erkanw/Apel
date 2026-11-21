@@ -181,6 +181,12 @@ object SqlRules {
     private val IDENT = Regex("^[A-Za-z_][A-Za-z0-9_]{0,63}$")
     val COLUMN_TYPES = listOf("TEXT", "INTEGER", "REAL", "NUMERIC", "BLOB")
 
+    fun isDbName(name: String) = DB_NAME.matches(name)
+
+    /** The name [UserDbCore.archive] gives an archived file: `<name>-yyyyMMdd-HHmmss.db`. Nothing else is trusted. */
+    private val ARCHIVED_FILE = Regex("""^[a-z][a-z0-9_]{0,30}-[0-9]{8}-[0-9]{6}\.db$""")
+    fun isArchivedFileName(file: String) = ARCHIVED_FILE.matches(file)
+
     fun checkDbName(name: String): String {
         if (!DB_NAME.matches(name)) throw DbException("A database name is lower-case letters, digits and _, starts with a letter, and is at most 31 characters.")
         return name

@@ -531,11 +531,12 @@ class LocalBackend(context: Context) : AgentBackend {
             emit(TurnEvent.ToolHint("Waiting for your OK"))
             val requestId = UUID.randomUUID().toString()
             // A scheduled run always asks by notification: nobody is watching its chat.
-            if (ctx.automation != null || !io.github.erkanw.vault.chat.ChatAlerts.appVisible) ApprovalAlerts.show(app, ask.summary, requestId, ctx.sessionId)
+            val unattended = ctx.automation != null || !io.github.erkanw.vault.chat.ChatAlerts.appVisible
+            if (unattended) ApprovalAlerts.show(app, ask.summary, requestId, ctx.sessionId)
             val since = System.currentTimeMillis()
             val answer = try {
                 // "Always allow" only means something when the tool's level is what asked.
-                ApprovalGate.ask(ctx.sessionId, tool.name, ask.summary, ask.detail, canAlways = special == null, id = requestId)
+                ApprovalGate.ask(ctx.sessionId, tool.name, ask.summary, ask.detail, canAlways = special == null, id = requestId, unattended = unattended)
             } finally {
                 ApprovalAlerts.clear(app)
                 ctx.waitedMs += System.currentTimeMillis() - since

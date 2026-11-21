@@ -93,6 +93,28 @@ class UserDbCoreTest {
         assertEquals(3L, count())
     }
 
+    /** Registry rows can come from a restored backup: a name or archived file the app wouldn't make never becomes a path. */
+    @Test fun forgedRegistryRowsReachNoFile() {
+        fresh(Access.ReadWrite)
+        val outside = File(home.parentFile, "outside-${System.nanoTime()}").apply { mkdirs() }
+        val victim = File(outside, "keep.txt").apply { writeText("keep") }
+        try {
+            reg.put(UserDb("../${outside.name}/keep", "", Access.ReadWrite, true, now))
+            reg.put(UserDb("..", "", Access.None, false, now, archivedFile = "../../${outside.name}/keep.txt"))
+            reg.put(UserDb("forged", "", Access.None, false, now, archivedFile = "../notes.db"))
+            assertEquals(listOf("notes"), core.list(includeArchived = true).map { it.name })
+            assertEquals(listOf("notes"), core.agentVisible().map { it.name })
+            refused({ core.query("../${outside.name}/keep", "SELECT 1", actor = Actor.Page) })
+            refused({ core.deleteArchived("..") })
+            refused({ core.restoreArchived("forged") })
+            refused({ core.deleteArchived("forged") })
+            assertTrue(victim.isFile)
+            assertEquals(3L, count())
+        } finally {
+            outside.deleteRecursively()
+        }
+    }
+
     @Test fun agentVisibilityFollowsTheSetting() {
         fresh(Access.None)
         assertTrue(core.agentVisible().isEmpty())
