@@ -50,6 +50,36 @@ object BrowserSession {
         return null
     }
 
+    /** Whether [host] resolves to an address on this phone or the home network. A name that doesn't resolve fails anyway. */
+    private fun resolvesHome(host: String): Boolean =
+        runCatching { java.net.InetAddress.getAllByName(host).any { !WebFetchTool.isPublic(it) } }.getOrDefault(false)
+
+    /** Replaces WebSocket with one that refuses this phone and the home network, as [ProviderEndpoints.isPrivateHost]. */
+    private val NO_HOME_SOCKETS = """
+        (function () {
+          var Native = window.WebSocket;
+          if (!Native) return;
+          function home(h) {
+            h = (h || '').toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+            if (h === 'localhost' || /\.localhost$/.test(h) || /\.local$/.test(h) || h === '::' || h === '::1') return true;
+            if (/^(fc|fd|fe80:)/.test(h) && h.indexOf(':') >= 0) return true;
+            if (h.indexOf('::ffff:') === 0) return true;
+            var m = h.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+            if (!m) return false;
+            var a = +m[1], b = +m[2];
+            return a === 0 || a === 127 || a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) ||
+              (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254);
+          }
+          function Guarded(url, protocols) {
+            if (home(new URL(url, location.href).hostname)) throw new DOMException('This phone and the home network are off limits.', 'SecurityError');
+            return protocols === undefined ? new Native(url) : new Native(url, protocols);
+          }
+          Guarded.prototype = Native.prototype;
+          Guarded.CONNECTING = 0; Guarded.OPEN = 1; Guarded.CLOSING = 2; Guarded.CLOSED = 3;
+          window.WebSocket = Guarded;
+        })();
+    """.trimIndent()
+
     @SuppressLint("SetJavaScriptEnabled")
     private fun ensure(context: Context): WebView {
         view?.let { return it }
@@ -76,10 +106,12 @@ object BrowserSession {
             }
 
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-                // A page may not reach into the home network from its scripts or images either.
+                // A page may not reach into the home network from its scripts or images either: by its name, and by every
+                // address the name resolves to (this runs off the main thread, so it may look the name up).
                 val host = request.url.host ?: return null
                 val scheme = request.url.scheme?.lowercase()
-                if ((scheme == "http" || scheme == "https") && ProviderEndpoints.isPrivateHost(host)) {
+                if ((scheme == "http" || scheme == "https") && (ProviderEndpoints.isPrivateHost(host) || resolvesHome(host))) {
+                    if (request.isForMainFrame) blocked = "Pages on this phone or the home network can’t be opened."
                     return WebResourceResponse("text/plain", "utf-8", 403, "Forbidden", emptyMap(), "".byteInputStream())
                 }
                 return null
@@ -88,6 +120,11 @@ object BrowserSession {
             override fun onPageFinished(view: WebView, url: String?) {
                 pageLoaded?.complete(Unit)
             }
+        }
+        // WebSockets don't pass through shouldInterceptRequest: a script that runs before the page's own refuses those
+        // to the home network (by address; a name is checked when the page itself loads, above).
+        if (androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            androidx.webkit.WebViewCompat.addDocumentStartJavaScript(v, NO_HOME_SOCKETS, setOf("*"))
         }
         v.measure(android.view.View.MeasureSpec.makeMeasureSpec(w, android.view.View.MeasureSpec.EXACTLY), android.view.View.MeasureSpec.makeMeasureSpec(h, android.view.View.MeasureSpec.EXACTLY))
         v.layout(0, 0, w, h)

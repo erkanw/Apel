@@ -1,6 +1,7 @@
 package io.github.erkanw.vault.tools
 
 import okhttp3.MediaType.Companion.toMediaType
+import io.github.erkanw.vault.provider.textAtMost
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -178,8 +179,8 @@ class McpClient(private val url: String, private val token: String?, private val
                 r.code !in 200..299 -> throw McpException("The server answered HTTP ${r.code}. Check that this is its MCP address (often ending in /mcp).")
             }
             if (!expectReply) return null
-            val text = r.body?.string().orEmpty()
-            if (text.length > MAX_BYTES) throw McpException("The server’s answer was too large.")
+            // Read up to the limit, never the whole answer first.
+            val text = r.body?.let { it.textAtMost(MAX_BYTES.toLong()) ?: throw McpException("The server’s answer was too large.") }.orEmpty()
             return McpProtocol.response(text, r.header("Content-Type"), id)
         }
     }

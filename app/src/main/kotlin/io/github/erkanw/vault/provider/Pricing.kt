@@ -28,7 +28,8 @@ fun pricePerMessage(promptPerM: Double, completionPerM: Double): Double =
 fun priceLine(free: Boolean, promptPerM: Double, completionPerM: Double): String {
     if (free) return "Free · 50 messages a day"
     val usd = pricePerMessage(promptPerM, completionPerM)
-    if (usd <= 0.0) return "Price unknown"
+    // Not listed (NaN) or not a price: never shown as a number.
+    if (!usd.isFinite() || usd <= 0.0) return "Price unknown"
     if (usd < 0.0001) return "Less than \$0.0001 a message"
     val rounded = BigDecimal.valueOf(usd).round(MathContext(1, java.math.RoundingMode.HALF_UP)).stripTrailingZeros().toPlainString()
     return "About \$$rounded a message"

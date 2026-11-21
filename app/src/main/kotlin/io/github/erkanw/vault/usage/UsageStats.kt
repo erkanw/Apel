@@ -85,7 +85,7 @@ object UsageStats {
         val monday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         val first = today.withDayOfMonth(1)
         val start = today.minusDays((DAYS - 1).toLong())
-        fun cost(c: UsageCall) = c.cost?.takeIf { !it.isNaN() && !it.isInfinite() } ?: 0.0
+        fun cost(c: UsageCall) = c.cost?.takeIf { it.isFinite() && it >= 0.0 } ?: 0.0
         val dated = calls.map { utcDay(it.time) to it }.filter { (d, _) -> !d.isAfter(today) }
         val inside = dated.filter { (d, _) -> !d.isBefore(start) }.map { it.second }
         val perDay = dated.filter { (d, _) -> !d.isBefore(start) }.groupBy({ it.first }, { cost(it.second) })
@@ -130,7 +130,7 @@ object UsageStats {
         calls.groupBy { utcDay(it.time).toString() to it.model }.map { (k, v) ->
             OrActivityRow(
                 date = k.first, model = k.second, provider = "",
-                usage = v.sumOf { it.cost ?: 0.0 }, requests = v.sumOf { it.requests },
+                usage = v.sumOf { it.cost?.takeIf { c -> c.isFinite() && c >= 0.0 } ?: 0.0 }, requests = v.sumOf { it.requests },
                 promptTokens = v.sumOf { it.tokensIn }, completionTokens = v.sumOf { it.tokensOut },
                 reasoningTokens = 0L, cachedTokens = 0L,
             )

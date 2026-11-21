@@ -44,13 +44,16 @@ object ProviderEndpoints {
 
     /** This phone, or an address on a private network: 10/8, 172.16/12, 192.168/16, 100.64/10, link-local, `.local`, IPv6 ULA. */
     fun isPrivateHost(host: String?): Boolean {
-        val h = host?.lowercase()?.removePrefix("[")?.removeSuffix("]") ?: return false
-        if (h == "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h == "::1") return true
+        val h = host?.lowercase()?.removePrefix("[")?.removeSuffix("]")?.removeSuffix(".") ?: return false
+        if (h == "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h == "::1" || h == "::") return true
         if (h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe80:")) return h.contains(':')
+        // An IPv4 address written as IPv6 (::ffff:192.168.1.1) is that IPv4 address.
+        if (h.startsWith("::ffff:")) return isPrivateHost(h.removePrefix("::ffff:")) || ':' in h.removePrefix("::ffff:")
         val parts = h.split('.').map { it.toIntOrNull() ?: return false }
         if (parts.size != 4 || parts.any { it !in 0..255 }) return false
         val (a, b) = parts
-        return a == 127 || a == 10 || (a == 172 && b in 16..31) || (a == 192 && b == 168) ||
+        // 0.0.0.0/8 reaches this phone on many systems.
+        return a == 0 || a == 127 || a == 10 || (a == 172 && b in 16..31) || (a == 192 && b == 168) ||
             (a == 100 && b in 64..127) || (a == 169 && b == 254)
     }
 }

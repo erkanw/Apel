@@ -45,6 +45,23 @@ object Workspace {
     /** `memory/` and `skills/` are written only by their own tools. */
     internal fun isGuardedTop(top: String) = top == "memory" || top == "skills"
 
+    /**
+     * Whether an agent may read [rel] (a workspace path as [relative] gives it). `memory/` holds every agent's memory, and
+     * each reads only its own: the first agent's is `memory/MEMORY.md` (files right in `memory/`), another's is in
+     * `memory/<its id>/`.
+     */
+    internal fun mayRead(rel: String, agentId: String, isFirst: Boolean): Boolean {
+        if (!rel.startsWith("memory/")) return true
+        val rest = rel.removePrefix("memory/")
+        return if (isFirst) '/' !in rest else rest == agentId || rest.startsWith("$agentId/")
+    }
+
+    /** [file], when the agent of [ctx] may read it ([mayRead]), else a [ToolException]. */
+    fun readable(ctx: ToolContext, file: File): File {
+        if (!mayRead(relative(ctx.app, file), ctx.agent.id, ctx.agent.isApel)) throw ToolException("That is another agent’s memory.")
+        return file
+    }
+
     fun relative(context: Context, file: File): String = file.canonicalFile.relativeTo(root(context).canonicalFile).path.replace('\\', '/')
 
     fun readText(file: File): String {
@@ -83,7 +100,7 @@ object FileTools {
         override fun hint(args: JSONObject) = "Looking at the files"
         override fun step(args: JSONObject) = "files_list " + args.optString("path").ifBlank { "/" }
         override suspend fun run(args: JSONObject, ctx: ToolContext): String {
-            val dir = Workspace.resolve(ctx.app, args.optString("path"))
+            val dir = Workspace.readable(ctx, Workspace.resolve(ctx.app, args.optString("path")))
             if (!dir.isDirectory) throw ToolException("No folder there.")
             val items = dir.listFiles().orEmpty().filter { !Workspace.isLink(it) }.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
             if (items.isEmpty()) return "(empty)"
@@ -100,7 +117,7 @@ object FileTools {
         override val defaultLevel = ToolLevel.Allowed
         override fun hint(args: JSONObject) = "Reading ${args.optString("path").substringAfterLast('/')}"
         override fun step(args: JSONObject) = "file_read " + args.optString("path")
-        override suspend fun run(args: JSONObject, ctx: ToolContext) = Workspace.readText(Workspace.resolve(ctx.app, args.need("path")))
+        override suspend fun run(args: JSONObject, ctx: ToolContext) = Workspace.readText(Workspace.readable(ctx, Workspace.resolve(ctx.app, args.need("path"))))
     }
 
     object Write : Tool {

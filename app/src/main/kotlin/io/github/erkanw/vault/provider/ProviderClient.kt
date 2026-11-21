@@ -96,7 +96,8 @@ fun parseStreamData(data: String, model: String, openRouter: Boolean): List<Stre
         }
     }
     o.optJSONObject("usage")?.let { u ->
-        val cost = if (u.has("cost") && !u.isNull("cost")) u.optDouble("cost") else null
+        // Only a real amount counts: a negative, NaN or endless "cost" would bend the budget.
+        val cost = if (u.has("cost") && !u.isNull("cost")) u.optDouble("cost").takeIf { it.isFinite() && it >= 0.0 } else null
         out += StreamPart.Usage(u.optLong("prompt_tokens", 0L), u.optLong("completion_tokens", 0L), cost)
     }
     return out

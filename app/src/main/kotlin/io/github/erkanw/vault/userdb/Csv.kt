@@ -55,6 +55,8 @@ object Csv {
         val types = header.indices.map { i ->
             val vals = body.map { it[i] }.filter { it.isNotEmpty() }
             when {
+                // "007", a postcode, a phone number: a number column would drop the zeros in front, so it stays text.
+                vals.any { LEADING_ZERO.containsMatchIn(it) } -> "TEXT"
                 vals.isNotEmpty() && vals.all { INT.matches(it) } -> "INTEGER"
                 vals.isNotEmpty() && vals.all { REAL.matches(it) } -> "REAL"
                 else -> "TEXT"
@@ -63,6 +65,8 @@ object Csv {
         return Import(header, body, types)
     }
 
+    /** A zero before another digit at the start ("007", "-01"), which a number would lose. "0" and "0.5" are fine. */
+    private val LEADING_ZERO = Regex("^[-+]?0[0-9]")
     private val INT = Regex("^-?[0-9]+$")
     private val REAL = Regex("^-?[0-9]*\\.?[0-9]+$")
     private val NUMBER = Regex("^-?[0-9.]+$")

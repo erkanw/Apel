@@ -101,6 +101,7 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.browser)
+    implementation(libs.androidx.webkit)
     // Automations: catching missed runs, waiting for the network, and running when an alarm can't start the service (PLAN §8).
     implementation(libs.androidx.work.runtime)
 

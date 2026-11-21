@@ -60,13 +60,13 @@ object Budget {
     fun settings(context: Context): Settings {
         val p = prefs(context)
         val action = Action.entries.firstOrNull { it.id == p.getString(KEY_ACTION, null) } ?: Action.Pause
-        return Settings(p.getFloat(KEY_LIMIT, 0f).toDouble().coerceAtLeast(0.0), action)
+        return Settings(p.getFloat(KEY_LIMIT, 0f).toDouble().takeIf { it.isFinite() }?.coerceAtLeast(0.0) ?: 0.0, action)
     }
 
     /** Sets the budget ([limit] 0 turns it off) and reads the month again. */
     suspend fun set(context: Context, limit: Double, action: Action) {
         prefs(context).edit {
-            putFloat(KEY_LIMIT, limit.coerceAtLeast(0.0).toFloat())
+            putFloat(KEY_LIMIT, limit.takeIf { it.isFinite() }?.coerceAtLeast(0.0)?.toFloat() ?: 0f)
             putString(KEY_ACTION, action.id)
             // A new limit may warn again this month.
             remove(KEY_WARNED)
@@ -78,7 +78,7 @@ object Budget {
 
     /** Dollars spent since the start of this UTC month, from the log. */
     suspend fun spentThisMonth(context: Context, now: Long = System.currentTimeMillis()): Double =
-        AppDatabase.get(context).usage().since(UsageStats.monthStart(now)).sumOf { it.cost?.takeIf { c -> !c.isNaN() } ?: 0.0 }
+        AppDatabase.get(context).usage().since(UsageStats.monthStart(now)).sumOf { it.cost?.takeIf { c -> c.isFinite() && c >= 0.0 } ?: 0.0 }
 
     /** Reads the month now and keeps it in [status]. */
     suspend fun refresh(context: Context, now: Long = System.currentTimeMillis()): Status {

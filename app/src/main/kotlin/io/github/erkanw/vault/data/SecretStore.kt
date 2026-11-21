@@ -25,18 +25,35 @@ class SecretStore(context: Context, file: String = "secret", private val alias: 
     fun tokenFor(url: String): String? {
         if (prefs.getString(KEY_URL, null) != url) return null
         val blob = prefs.getString(KEY_TOKEN, null) ?: return null
+        val bytes = try {
+            Base64.decode(blob, Base64.NO_WRAP).takeIf { it.size > IV_SIZE }
+        } catch (e: IllegalArgumentException) {
+            null
+        }
+        // Not something this store wrote: it can never be read, so it goes.
+        if (bytes == null) return null.also { clear() }
         return try {
-            val bytes = Base64.decode(blob, Base64.NO_WRAP)
-            val iv = bytes.copyOfRange(0, IV_SIZE)
+            // The key gone (a restore, a new lock screen, the app's data cleared): the token can't come back either.
+            val key = existingKey() ?: return null.also { clear() }
             val cipher = Cipher.getInstance(TRANSFORM)
-            cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(TAG_BITS, iv))
+            cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(TAG_BITS, bytes.copyOfRange(0, IV_SIZE)))
             String(cipher.doFinal(bytes, IV_SIZE, bytes.size - IV_SIZE), Charsets.UTF_8)
-        } catch (e: Exception) {
-            // The key was lost (a restore, a new lock screen): ask for the token again.
+        } catch (e: javax.crypto.AEADBadTagException) {
+            // Sealed with another key: lost for good.
             clear()
+            null
+        } catch (e: android.security.keystore.KeyPermanentlyInvalidatedException) {
+            clear()
+            null
+        } catch (e: Exception) {
+            // Anything else (the key store busy or failing for now) may pass: keep the token and try again next time.
             null
         }
     }
+
+    /** The key, if it is still in the key store. */
+    private fun existingKey(): SecretKey? =
+        KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.getKey(alias, null) as? SecretKey
 
     fun save(url: String, token: String) {
         val cipher = Cipher.getInstance(TRANSFORM)

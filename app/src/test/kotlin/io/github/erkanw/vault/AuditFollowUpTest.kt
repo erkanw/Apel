@@ -10,7 +10,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
+import io.github.erkanw.vault.provider.textAtMost
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -82,6 +85,67 @@ class AuditFollowUpTest {
     @Test fun `an approval with no time left is a no at once`() = runBlocking {
         assertEquals(ApprovalGate.Answer.Timeout, ApprovalGate.ask("s", "t", "Summary", "", timeoutMs = 0L))
         assertTrue(ApprovalGate.pending.value.isEmpty())
+    }
+
+    // ---- Low items ----
+
+    @Test fun `each agent reads only its own memory`() {
+        // The first agent: files right in memory/.
+        assertTrue(io.github.erkanw.vault.tools.Workspace.mayRead("memory/MEMORY.md", "apel", isFirst = true))
+        assertFalse(io.github.erkanw.vault.tools.Workspace.mayRead("memory/coach/MEMORY.md", "apel", isFirst = true))
+        // Another agent: its own folder only.
+        assertTrue(io.github.erkanw.vault.tools.Workspace.mayRead("memory/coach/MEMORY.md", "coach", isFirst = false))
+        assertTrue(io.github.erkanw.vault.tools.Workspace.mayRead("memory/coach", "coach", isFirst = false))
+        assertFalse(io.github.erkanw.vault.tools.Workspace.mayRead("memory/MEMORY.md", "coach", isFirst = false))
+        assertFalse(io.github.erkanw.vault.tools.Workspace.mayRead("memory/coachX/MEMORY.md", "coach", isFirst = false))
+        assertFalse(io.github.erkanw.vault.tools.Workspace.mayRead("memory/other/MEMORY.md", "coach", isFirst = false))
+        // Everything else, and the memory folder itself, as before.
+        assertTrue(io.github.erkanw.vault.tools.Workspace.mayRead("notes/a.md", "coach", isFirst = false))
+        assertTrue(io.github.erkanw.vault.tools.Workspace.mayRead("memory", "coach", isFirst = false))
+    }
+
+    @Test fun `a CSV column with zeros in front stays text`() {
+        val import = io.github.erkanw.vault.userdb.Csv.prepare("code,zip,n,x\n007,01234,5,0.5\n12,99999,6,0\n")
+        assertEquals(listOf("TEXT", "TEXT", "INTEGER", "REAL"), import.types)
+    }
+
+    @Test fun `a price that isn't listed is unknown, not free`() {
+        assertTrue(io.github.erkanw.vault.openrouter.perM(null).isNaN())
+        assertTrue(io.github.erkanw.vault.openrouter.perM("-1").isNaN())
+        assertTrue(io.github.erkanw.vault.openrouter.perM("abc").isNaN())
+        assertEquals(0.15, io.github.erkanw.vault.openrouter.perM("0.00000015"), 1e-9)
+        val models = io.github.erkanw.vault.openrouter.parseCatalog(
+            """{"data":[{"id":"openrouter/auto","pricing":{"prompt":"-1","completion":"-1"}},{"id":"x/nopricing"},{"id":"x/free","pricing":{"prompt":"0","completion":"0"}}]}""",
+            "{}",
+        )
+        val auto = models.first { it.id == "openrouter/auto" }
+        assertFalse(auto.free)
+        assertEquals("Price unknown", io.github.erkanw.vault.openrouter.priceDetail(auto))
+        assertEquals("Price unknown", io.github.erkanw.vault.openrouter.priceLine(auto.bestIn, auto.bestOut))
+        assertFalse(models.first { it.id == "x/nopricing" }.free)
+        assertTrue(models.first { it.id == "x/free" }.free)
+        assertEquals("Price unknown", io.github.erkanw.vault.provider.priceLine(false, Double.NaN, Double.NaN))
+        // Kept between visits, an unknown price stays unknown.
+        val back = io.github.erkanw.vault.openrouter.parseCachedCatalog(io.github.erkanw.vault.openrouter.catalogToJson(models, 1L))!!.first
+        assertFalse(back.first { it.id == "openrouter/auto" }.free)
+        assertTrue(back.first { it.id == "x/free" }.free)
+    }
+
+    @Test fun `more addresses count as this phone or the home network`() {
+        val p = io.github.erkanw.vault.provider.ProviderEndpoints
+        for (h in listOf("0.0.0.0", "0.1.2.3", "::", "[::]", "::ffff:192.168.1.1", "[::ffff:127.0.0.1]", "localhost.", "printer.local")) assertTrue(h, p.isPrivateHost(h))
+        for (h in listOf("example.com", "8.8.8.8", "::ffff:8.8.8.8", "2001:4860:4860::8888")) assertFalse(h, p.isPrivateHost(h))
+    }
+
+    @Test fun `a tool server's levels don't follow its display name`() {
+        // A level kept under a server's id and tool name is a tool server's, asking first by default.
+        assertEquals(ToolLevel.Ask, ToolRegistry.restoredLevel("mcp:abc123:search", ToolLevel.Allowed))
+    }
+
+    @Test fun `an answer is read only up to its limit`() {
+        val small = "x".repeat(100).toResponseBody()
+        assertEquals(100, small.textAtMost(100)!!.length)
+        assertNull("y".repeat(101).toResponseBody().textAtMost(100))
     }
 
     // ---- 7: the sign-in listener ----

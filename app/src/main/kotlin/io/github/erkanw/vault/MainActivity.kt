@@ -42,6 +42,8 @@ class MainActivity : ComponentActivity() {
         // The look chosen in Settings, told to Android so the next launch screen already wears it (a no-op once it has).
         applyNightMode(this, ThemeMode.fromId(BlobPrefs.themeId(this)))
         enableEdgeToEdge()
+        // Chats, memory and files don't show in the recent-apps switcher (Android 13+). Your own screenshots still work.
+        if (android.os.Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(false)
         Haptics.attach(this)
         // Once per intent: not again on rotation, but also when Android restores the screen for a notification tap after
         // the app was closed (the saved state is there then, and the tap's intent is new).

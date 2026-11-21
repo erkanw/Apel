@@ -1,5 +1,6 @@
 package io.github.erkanw.vault.openrouter
 
+import io.github.erkanw.vault.provider.textAtMost
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
@@ -46,8 +47,8 @@ fun parseCatalog(modelsBody: String, zdrBody: String): List<CatalogModel> {
         val o = zdrList.optJSONObject(i) ?: continue
         val id = o.optString("model_id")
         val price = o.optJSONObject("pricing") ?: continue
-        val prompt = price.optString("prompt").toDoubleOrNull() ?: continue
-        val completion = price.optString("completion").toDoubleOrNull() ?: continue
+        val prompt = price.optString("prompt").toDoubleOrNull()?.takeIf { it.isFinite() && it >= 0.0 } ?: continue
+        val completion = price.optString("completion").toDoubleOrNull()?.takeIf { it.isFinite() && it >= 0.0 } ?: continue
         if (id.isBlank()) continue
         val now = prompt * 1e6 to completion * 1e6
         val before = cheapest[id]
@@ -70,8 +71,8 @@ fun parseCatalog(modelsBody: String, zdrBody: String): List<CatalogModel> {
                 id = id,
                 name = o.optString("name").ifBlank { id },
                 contextTokens = o.optLong("context_length", 0L),
-                promptPerM = (price?.optString("prompt")?.toDoubleOrNull() ?: 0.0) * 1e6,
-                completionPerM = (price?.optString("completion")?.toDoubleOrNull() ?: 0.0) * 1e6,
+                promptPerM = perM(price?.optString("prompt")),
+                completionPerM = perM(price?.optString("completion")),
                 tools = "tools" in supported,
                 reasoning = "reasoning" in supported,
                 created = o.optLong("created", 0L),
@@ -126,8 +127,15 @@ private fun usdPerM(v: Double) = when {
     else -> String.format(java.util.Locale.US, "$%.0f", v)
 }
 
-/** "$0.03 / $0.15 per M": what a million tokens in and out cost. */
-fun priceLine(inPerM: Double, outPerM: Double): String = "${usdPerM(inPerM)} / ${usdPerM(outPerM)} per M"
+/**
+ * A price per token from the catalogue, per million. A missing price, or a negative one (OpenRouter lists -1 for
+ * "varies", as for its router), is unknown: NaN, never 0, which would read as free.
+ */
+fun perM(perToken: String?): Double = perToken?.toDoubleOrNull()?.takeIf { it.isFinite() && it >= 0.0 }?.times(1e6) ?: Double.NaN
+
+/** "$0.03 / $0.15 per M": what a million tokens in and out cost; "Price unknown" when it isn't listed. */
+fun priceLine(inPerM: Double, outPerM: Double): String =
+    if (!inPerM.isFinite() || !outPerM.isFinite()) "Price unknown" else "${usdPerM(inPerM)} / ${usdPerM(outPerM)} per M"
 
 /** The catalogue entry for a model id: the exact id, else the same model without a variant suffix ("openai/x:nitro" is "openai/x"). */
 fun findCatalogModel(models: List<CatalogModel>, id: String): CatalogModel? {
@@ -137,7 +145,11 @@ fun findCatalogModel(models: List<CatalogModel>, id: String): CatalogModel? {
 
 /** What a model costs, for the model list in the chat: "In $0.03 · Out $0.15 per 1M tokens", or "Free". */
 fun priceDetail(m: CatalogModel): String =
-    if (m.free) "Free" else "In ${usdPerM(m.bestIn)} · Out ${usdPerM(m.bestOut)} per 1M tokens"
+    when {
+        m.free -> "Free"
+        !m.bestIn.isFinite() || !m.bestOut.isFinite() -> "Price unknown"
+        else -> "In ${usdPerM(m.bestIn)} · Out ${usdPerM(m.bestOut)} per 1M tokens"
+    }
 
 /** Fetches the two lists. OpenRouter's own public address, fixed here; no key is sent. Blocking: call it off the main thread. */
 object ModelCatalogClient {
@@ -156,8 +168,8 @@ object ModelCatalogClient {
         http.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw IOException("OpenRouter answered HTTP ${response.code}.")
             val body = response.body ?: throw IOException("OpenRouter sent nothing.")
-            if (body.contentLength() > MAX_BYTES) throw IOException("OpenRouter's list is too large.")
-            return body.string()
+            // Read up to the limit, never the whole answer first: a missing or wrong length doesn't let it run on.
+            return body.textAtMost(MAX_BYTES) ?: throw IOException("OpenRouter's list is too large.")
         }
     }
 
@@ -174,9 +186,16 @@ fun catalogToJson(models: List<CatalogModel>, at: Long): String = JSONObject().p
     JSONArray().also { a ->
         models.forEach { m ->
             a.put(
-                JSONObject().put("id", m.id).put("name", m.name).put("ctx", m.contextTokens).put("in", m.promptPerM)
-                    .put("out", m.completionPerM).put("tools", m.tools).put("reasoning", m.reasoning).put("created", m.created)
-                    .put("zdr", m.zdr).put("zin", m.zdrIn).put("zout", m.zdrOut).put("inputs", JSONArray(m.inputs.toList())),
+                JSONObject().put("id", m.id).put("name", m.name).put("ctx", m.contextTokens)
+                    .put("tools", m.tools).put("reasoning", m.reasoning).put("created", m.created)
+                    .put("zdr", m.zdr).put("inputs", JSONArray(m.inputs.toList()))
+                    // An unknown price (NaN) is left out: JSON can't hold it, and reading it back makes it unknown again.
+                    .apply {
+                        if (m.promptPerM.isFinite()) put("in", m.promptPerM)
+                        if (m.completionPerM.isFinite()) put("out", m.completionPerM)
+                        if (m.zdrIn.isFinite()) put("zin", m.zdrIn)
+                        if (m.zdrOut.isFinite()) put("zout", m.zdrOut)
+                    },
             )
         }
     },
@@ -190,7 +209,7 @@ fun parseCachedCatalog(json: String?): Pair<List<CatalogModel>, Long>? {
         val o = a.optJSONObject(i) ?: JSONObject()
         CatalogModel(
             id = o.optString("id"), name = o.optString("name"), contextTokens = o.optLong("ctx"),
-            promptPerM = o.optDouble("in", 0.0), completionPerM = o.optDouble("out", 0.0),
+            promptPerM = o.optDouble("in", Double.NaN), completionPerM = o.optDouble("out", Double.NaN),
             tools = o.optBoolean("tools"), reasoning = o.optBoolean("reasoning"), created = o.optLong("created"),
             zdr = o.optBoolean("zdr"), zdrIn = o.optDouble("zin", 0.0), zdrOut = o.optDouble("zout", 0.0),
             inputs = o.optJSONArray("inputs")?.let { i -> (0 until i.length()).map { i.optString(it) }.toSet() }.orEmpty(),

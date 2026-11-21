@@ -29,14 +29,18 @@ object ToolRegistry {
 
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    /** Where [name]'s level is kept: a tool server's tool under its server and own name ([McpTool.levelKey]). */
+    private fun levelKey(context: Context, name: String): String =
+        if (name.startsWith("mcp_")) McpStore.tool(context, name)?.levelKey ?: name else name
+
     fun level(context: Context, name: String): ToolLevel {
         val default = if (name == WEB_SEARCH) ToolLevel.Allowed else tool(context, name)?.defaultLevel ?: ToolLevel.Off
-        val stored = ToolLevel.of(prefs(context).getString(name, null)) ?: default
+        val stored = ToolLevel.of(prefs(context).getString(levelKey(context, name), null)) ?: default
         // OpenRouter runs the search itself, so the app can’t ask first: it is on or off.
         return if (name == WEB_SEARCH && stored == ToolLevel.Ask) ToolLevel.Off else stored
     }
 
-    fun setLevel(context: Context, name: String, level: ToolLevel) = prefs(context).edit { putString(name, level.id) }
+    fun setLevel(context: Context, name: String, level: ToolLevel) = prefs(context).edit { putString(levelKey(context, name), level.id) }
 
     /**
      * The level a restored backup may set for [name] (PLAN §10): a backup can come from someone else, so "Allowed" on a
