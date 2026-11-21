@@ -59,6 +59,9 @@ object WebFetchTool : Tool {
     override val defaultLevel = ToolLevel.Allowed
     override fun hint(args: JSONObject) = "Reading " + (args.optString("url").toHttpUrlOrNull()?.host?.removePrefix("www.") ?: "a page")
     override fun step(args: JSONObject) = "web_fetch " + args.optString("url")
+    // After reading the web, an address from nowhere it read could carry your data out (PLAN §10): it asks first.
+    override fun mustAsk(args: JSONObject, ctx: ToolContext): ApprovalAsk? =
+        args.optString("url").takeIf { ctx.mustAskToOpen(it) }?.let { UrlTrail.ask(it) }
 
     fun isPublic(a: InetAddress): Boolean {
         if (a.isAnyLocalAddress || a.isLoopbackAddress || a.isLinkLocalAddress || a.isSiteLocalAddress || a.isMulticastAddress) return false

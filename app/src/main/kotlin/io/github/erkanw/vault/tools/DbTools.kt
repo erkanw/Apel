@@ -124,7 +124,8 @@ object DbTools {
 
         override fun ask(args: JSONObject) = ApprovalAsk(
             "Change the database “${args.optString("database")}”",
-            args.optString("sql").take(2_000) + (args.optJSONArray("params")?.takeIf { it.length() > 0 }?.let { "\n\nValues: ${it.toString().take(1_000)}" } ?: ""),
+            // All of it: what runs is what you read (the card scrolls).
+            args.optString("sql") + (args.optJSONArray("params")?.takeIf { it.length() > 0 }?.let { "\n\nValues: $it" } ?: ""),
         )
 
         override suspend fun run(args: JSONObject, ctx: ToolContext): String {

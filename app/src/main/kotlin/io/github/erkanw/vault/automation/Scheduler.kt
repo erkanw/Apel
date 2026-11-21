@@ -107,7 +107,8 @@ object Scheduler {
             Automations.ensureBuiltIns(applicationContext)
             val now = System.currentTimeMillis()
             val overdue = Automations.all(applicationContext).any { it.enabled && it.nextRun in 1..(now - 60_000L) }
-            if (overdue) AutomationRunner.drain(applicationContext) else arm(applicationContext)
+            // A plain background job: Android stops it after about ten minutes.
+            if (overdue) AutomationRunner.drain(applicationContext, until = System.currentTimeMillis() + AutomationRunner.BACKGROUND_JOB_MS) else arm(applicationContext)
             return Result.success()
         }
     }
@@ -116,8 +117,10 @@ object Scheduler {
     class RunWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
         override suspend fun doWork(): Result {
             // Promoted to a foreground service where Android allows it; otherwise it runs as a job.
-            runCatching { setForeground(getForegroundInfo()) }
-            if (!AgentService.runAutomations(applicationContext)) AutomationRunner.drain(applicationContext)
+            val foreground = runCatching { setForeground(getForegroundInfo()) }.isSuccess
+            // As a plain job (not promoted), Android stops it after about ten minutes: approvals give up before then.
+            val until = if (foreground) 0L else System.currentTimeMillis() + AutomationRunner.BACKGROUND_JOB_MS
+            if (!AgentService.runAutomations(applicationContext)) AutomationRunner.drain(applicationContext, until)
             return Result.success()
         }
 

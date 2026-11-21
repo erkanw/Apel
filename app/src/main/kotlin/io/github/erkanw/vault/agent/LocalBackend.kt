@@ -283,6 +283,8 @@ class LocalBackend(context: Context) : AgentBackend {
         val openRouter = target.kind == ProviderKind.OpenRouter
         val content = userContent(input.text, input.media, pdfAsFile = openRouter) { name, bytes -> saveDownload(name, bytes) }
         val ctx = ToolContext(app, session.id, automation = auto?.id, channelId = input.channelId ?: session.channelId, agent = agent)
+        // Addresses you give can be opened even after the turn reads the web.
+        ctx.see(input.text)
         val steps = ArrayList<AgentStep>()
         if (auto != null) {
             val step = AgentStep(StepKind.Note, "Scheduled run of “${auto.name}”: ${input.text.take(300)}")
@@ -368,11 +370,15 @@ class LocalBackend(context: Context) : AgentBackend {
                                 part.cost?.let { cost = (cost ?: 0.0) + it }
                             }
                             is StreamPart.Citation -> if (sources.isEmpty()) {
+                                ctx.see(part.url)
                                 sources[part.url] = part.title
                                 searchCut = raw.length
                                 ctx.readWeb = true
                                 emit(TurnEvent.ToolHint("Searching the web"))
-                            } else sources[part.url] = part.title
+                            } else {
+                                ctx.see(part.url)
+                                sources[part.url] = part.title
+                            }
                             is StreamPart.ToolCall -> {
                                 val c = calls.getOrPut(part.index) { PendingCall() }
                                 part.id?.let { c.id = it }
@@ -534,11 +540,13 @@ class LocalBackend(context: Context) : AgentBackend {
             val unattended = ctx.automation != null || !io.github.erkanw.vault.chat.ChatAlerts.appVisible
             if (unattended) ApprovalAlerts.show(app, ask.summary, requestId, ctx.sessionId)
             val since = System.currentTimeMillis()
+            // An automation in a background job waits only as long as the job may run, so its run still ends properly.
+            val wait = if (ctx.automation != null) io.github.erkanw.vault.automation.AutomationRunner.approvalWait(30 * 60_000L) else 30 * 60_000L
             val answer = try {
                 // "Always allow" only means something when the tool's level is what asked.
-                ApprovalGate.ask(ctx.sessionId, tool.name, ask.summary, ask.detail, canAlways = special == null, id = requestId, unattended = unattended)
+                ApprovalGate.ask(ctx.sessionId, tool.name, ask.summary, ask.detail, canAlways = special == null, id = requestId, unattended = unattended, timeoutMs = wait)
             } finally {
-                ApprovalAlerts.clear(app)
+                ApprovalAlerts.clear(app, requestId)
                 ctx.waitedMs += System.currentTimeMillis() - since
             }
             when (answer) {
@@ -547,8 +555,9 @@ class LocalBackend(context: Context) : AgentBackend {
                     return "The user said no to this, so it didn’t run. Don’t try to do it another way; tell them what you would have done."
                 }
                 ApprovalGate.Answer.Timeout -> {
-                    keep("${tool.step(args)}\n→ No answer in 30 minutes")
-                    return "The user didn’t answer within 30 minutes, so it didn’t run. Tell them it is waiting for their OK if they still want it."
+                    val minutes = ((wait + 59_999L) / 60_000L).coerceAtLeast(1L)
+                    keep("${tool.step(args)}\n→ No answer in $minutes minute${if (minutes == 1L) "" else "s"}")
+                    return "The user didn’t answer within $minutes minute${if (minutes == 1L) "" else "s"}, so it didn’t run. Tell them it is waiting for their OK if they still want it."
                 }
                 ApprovalGate.Answer.AllowAlways -> if (level == ToolLevel.Ask) ToolRegistry.setLevel(app, tool.name, ToolLevel.Allowed)
                 ApprovalGate.Answer.Allow -> Unit
@@ -562,7 +571,8 @@ class LocalBackend(context: Context) : AgentBackend {
         }
         ctx.inFlight = tool.step(args)
         val result = try {
-            kotlinx.coroutines.withTimeout(limit) { tool.run(args, ctx) }.also { if (tool.name == "web_fetch") ctx.readWeb = true }
+            // A page and a tool server's answer are both untrusted: after either, keeping memory and opening new addresses ask.
+            kotlinx.coroutines.withTimeout(limit) { tool.run(args, ctx) }.also { if (tool.name == "web_fetch" || tool.name.startsWith("mcp_")) ctx.readWeb = true }
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
             "Error: it took longer than ${limit / 1000} seconds."
         } catch (e: CancellationException) {
@@ -573,6 +583,8 @@ class LocalBackend(context: Context) : AgentBackend {
             "Error: ${e.javaClass.simpleName}${e.message?.let { ": $it" }.orEmpty()}"
         }
         ctx.inFlight = null
+        // A link in what came back may be followed next.
+        ctx.see(result)
         val firstLine = result.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() && !it.startsWith("URL:") }.orEmpty()
         keep("${tool.step(args)}\n→ ${firstLine.take(160)}")
         val capped = if (result.length > MAX_RESULT) result.take(MAX_RESULT) + "\n…(cut at 16 KB)" else result

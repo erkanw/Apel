@@ -38,6 +38,15 @@ object ToolRegistry {
 
     fun setLevel(context: Context, name: String, level: ToolLevel) = prefs(context).edit { putString(name, level.id) }
 
+    /**
+     * The level a restored backup may set for [name] (PLAN §10): a backup can come from someone else, so "Allowed" on a
+     * tool that asks (or is off) by default comes back as "Ask first". A tool server's tools count as asking by default.
+     */
+    fun restoredLevel(name: String, stored: ToolLevel): ToolLevel {
+        val default = if (name == WEB_SEARCH) ToolLevel.Allowed else tool(name)?.defaultLevel ?: ToolLevel.Ask
+        return if (stored == ToolLevel.Allowed && default != ToolLevel.Allowed) ToolLevel.Ask else stored
+    }
+
     /** Whether web search can be offered: only OpenRouter runs it (another search service joins later). */
     fun searchAvailable(kind: ProviderKind) = kind == ProviderKind.OpenRouter
 

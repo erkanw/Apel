@@ -116,9 +116,12 @@ object FileTools {
             val path = args.optString("path")
             val file = runCatching { Workspace.resolve(ctx.app, path, forWrite = true) }.getOrNull() ?: return null
             if (!file.exists() || Workspace.agentMade(ctx.app, Workspace.relative(ctx.app, file))) return null
-            return ApprovalAsk("Replace ${file.name}, a file you made", path)
+            return ApprovalAsk("Replace ${file.name}, a file you made", detail(args))
         }
-        override fun ask(args: JSONObject) = ApprovalAsk("Write ${args.optString("path").substringAfterLast('/')}", args.optString("path"))
+        override fun ask(args: JSONObject) = ApprovalAsk("Write ${args.optString("path").substringAfterLast('/')}", detail(args))
+
+        /** The path and the whole text that would be written. */
+        fun detail(args: JSONObject) = args.optString("path") + "\n\n" + args.optString("content")
         override suspend fun run(args: JSONObject, ctx: ToolContext): String {
             val file = Workspace.resolve(ctx.app, args.need("path"), forWrite = true)
             val content = args.optString("content")
@@ -141,7 +144,11 @@ object FileTools {
         override val defaultLevel = ToolLevel.Allowed
         override fun hint(args: JSONObject) = "Editing ${args.optString("path").substringAfterLast('/')}"
         override fun step(args: JSONObject) = "file_edit " + args.optString("path")
-        override fun mustAsk(args: JSONObject, ctx: ToolContext): ApprovalAsk? = Write.mustAsk(args, ctx)?.let { ApprovalAsk("Change ${args.optString("path").substringAfterLast('/')}, a file you made", args.optString("path")) }
+        override fun mustAsk(args: JSONObject, ctx: ToolContext): ApprovalAsk? = Write.mustAsk(args, ctx)?.let { ApprovalAsk("Change ${args.optString("path").substringAfterLast('/')}, a file you made", detail(args)) }
+        override fun ask(args: JSONObject) = ApprovalAsk("Change ${args.optString("path").substringAfterLast('/')}", detail(args))
+
+        /** The path, the text that goes and the text that comes in its place. */
+        fun detail(args: JSONObject) = args.optString("path") + "\n\nReplace:\n" + args.optString("old_text") + "\n\nWith:\n" + args.optString("new_text")
         override suspend fun run(args: JSONObject, ctx: ToolContext): String {
             val file = Workspace.resolve(ctx.app, args.need("path"), forWrite = true)
             replaceOnce(file, args.need("old_text"), args.optString("new_text"))

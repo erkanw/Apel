@@ -76,7 +76,7 @@ object MemoryTools {
         override fun step(args: JSONObject) = "memory_write ${args.optString("section")}: ${args.optString("text").take(120)}"
         // After reading the web, a page could be steering it: what it keeps for every later chat is asked first (PLAN §10).
         override fun mustAsk(args: JSONObject, ctx: ToolContext): ApprovalAsk? =
-            if (ctx.readWeb) ApprovalAsk("Remember this, after reading the web", "${args.optString("section")}: ${args.optString("text").take(400)}") else null
+            if (ctx.readWeb) ApprovalAsk("Remember this, after reading the web", "${args.optString("section")}: ${args.optString("text")}") else null
         override suspend fun run(args: JSONObject, ctx: ToolContext): String {
             val section = args.need("section").replace("\n", " ").trim().trimStart('#', ' ')
             val text = args.optString("text").trim()

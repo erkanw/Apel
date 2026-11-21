@@ -71,7 +71,7 @@ object AutomationTools {
             buildString {
                 append(runCatching { describeSchedule(scheduleOf(args)!!.toJson()) }.getOrDefault("(no valid schedule)"))
                 append("\nPosts in: ").append(args.optString("runs_in").ifBlank { "this chat’s channel, or a new chat each time" })
-                append("\n\n").append(args.optString("instruction").take(1_500))
+                append("\n\n").append(args.optString("instruction"))
             },
         )
 
@@ -108,7 +108,7 @@ object AutomationTools {
         override fun step(args: JSONObject) = "automation_update ${args.optString("id")}"
         override fun ask(args: JSONObject): ApprovalAsk = ApprovalAsk(
             "Change the automation “${args.optString("id").take(60)}”",
-            args.keys().asSequence().filter { it != "id" }.joinToString("\n") { "$it: ${args.opt(it).toString().take(600)}" }.ifBlank { "(nothing to change)" },
+            args.keys().asSequence().filter { it != "id" }.joinToString("\n") { "$it: ${args.opt(it)}" }.ifBlank { "(nothing to change)" },
         )
 
         override suspend fun run(args: JSONObject, ctx: ToolContext): String {

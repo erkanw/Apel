@@ -75,6 +75,14 @@ fun ApprovalCard(
         Text(request.summary, color = k.text, style = VaultType.Body, lineHeight = 21.sp)
         if (request.detail.isNotBlank()) {
             Spacer(Modifier.height(10.dp))
+            // Everything that will run is shown, never a start of it: a long request says so, so it is read to the end.
+            if (request.detail.length > LONG_DETAIL) {
+                Text(
+                    "This is long (${java.text.NumberFormat.getIntegerInstance().format(request.detail.length)} characters). Scroll to read all of it before you allow it.",
+                    color = k.muted, style = VaultType.Label.copy(fontWeight = null), lineHeight = 19.sp,
+                )
+                Spacer(Modifier.height(8.dp))
+            }
             Text(
                 request.detail,
                 color = k.text, style = VaultType.Preview.copy(fontSize = 13.sp), lineHeight = 19.sp, fontFamily = FontFamily.Monospace,
@@ -109,6 +117,9 @@ fun ApprovalCard(
         }
     }
 }
+
+/** Details longer than this get a line saying how long they are. */
+private const val LONG_DETAIL = 600
 
 /** One full-width choice in the stack under a request. */
 @Composable

@@ -36,7 +36,7 @@ object ApprovalAlerts {
             },
         )
         val open = PendingIntent.getActivity(
-            context, ID,
+            context, requestId.hashCode(),
             Intent(context, MainActivity::class.java)
                 .setAction(ChatAlerts.ACTION_OPEN)
                 .putExtra(ChatAlerts.EXTRA_CHAT, chatId)
@@ -44,7 +44,7 @@ object ApprovalAlerts {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val deny = PendingIntent.getBroadcast(
-            context, ID,
+            context, requestId.hashCode(),
             Intent(context, DenyReceiver::class.java).setAction(ACTION_DENY).putExtra(EXTRA_REQUEST, requestId),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
@@ -61,17 +61,19 @@ object ApprovalAlerts {
             .addAction(0, "Open", open)
             .setAutoCancel(true)
             .build()
-        manager.notify(ID, n)
+        // One notification per request (tagged with its id): a second never replaces the first, and answering one clears only it.
+        manager.notify(requestId, ID, n)
     }
 
-    fun clear(context: Context) = context.getSystemService(NotificationManager::class.java).cancel(ID)
+    fun clear(context: Context, requestId: String) = context.getSystemService(NotificationManager::class.java).cancel(requestId, ID)
 
     /** Deny, from the notification. */
     class DenyReceiver : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action != ACTION_DENY) return
-            intent.getStringExtra(EXTRA_REQUEST)?.let { ApprovalGate.answer(it, ApprovalGate.Answer.Deny) }
-            clear(context)
+            val request = intent.getStringExtra(EXTRA_REQUEST) ?: return
+            ApprovalGate.answer(request, ApprovalGate.Answer.Deny)
+            clear(context, request)
         }
     }
 }

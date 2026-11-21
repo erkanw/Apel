@@ -40,6 +40,12 @@ object AutomationRunner {
     /** Runs kept per automation. */
     private const val KEEP_RUNS = 100
 
+    /** How long before a background job's end an approval stops waiting: time for the run to finish and be recorded. */
+    private const val FINISH_MARGIN_MS = 90_000L
+
+    /** What Android gives a background job (about ten minutes), less a little. */
+    const val BACKGROUND_JOB_MS = 9 * 60_000L
+
     private val _running = MutableStateFlow<Set<String>>(emptySet())
 
     /** The jobs running right now (at most one). */
@@ -57,16 +63,30 @@ object AutomationRunner {
         Scheduler.runDue(context.applicationContext)
     }
 
+    /** When the drain running now must be done by (a WorkManager job, which Android stops after about ten minutes), or 0. */
+    @Volatile private var deadline = 0L
+
+    /**
+     * How long a tool may wait for your OK in an automation now: up to [max], and in a background job short enough that
+     * the run ends (as "no answer") before Android stops it, so it is recorded and planned like any other run.
+     */
+    fun approvalWait(max: Long): Long {
+        val until = deadline
+        if (until == 0L) return max
+        return (until - System.currentTimeMillis() - FINISH_MARGIN_MS).coerceIn(0L, max)
+    }
+
     /**
      * Runs every due or requested job until none is left, then sets the alarm for the next one. Calls while it is busy
-     * just make it look again before it ends.
+     * just make it look again before it ends. [until]: when a background job running this must be done (0: no limit).
      */
-    suspend fun drain(context: Context) {
+    suspend fun drain(context: Context, until: Long = 0L) {
         val app = context.applicationContext
         again = true
         while (again) {
             // Busy: the drain running now looks again before it ends.
             if (!mutex.tryLock()) return
+            deadline = until
             try {
                 cleanOnce(app)
                 val tried = HashSet<String>()
@@ -75,6 +95,7 @@ object AutomationRunner {
                     if (pass(app, tried)) again = true
                 }
             } finally {
+                deadline = 0L
                 mutex.unlock()
             }
         }

@@ -261,7 +261,7 @@ object SkillStore {
         override val defaultLevel = ToolLevel.Ask
         override fun hint(args: JSONObject) = "Saving the ${args.optString("name")} skill"
         override fun step(args: JSONObject) = "skill_save " + args.optString("name")
-        override fun ask(args: JSONObject) = ApprovalAsk("Save the skill “${args.optString("name")}”", args.optString("description") + "\n\n" + args.optString("instructions").take(600))
+        override fun ask(args: JSONObject) = ApprovalAsk("Save the skill “${args.optString("name")}”", args.optString("description") + "\n\n" + args.optString("instructions"))
         override suspend fun run(args: JSONObject, ctx: ToolContext): String {
             save(ctx.app, args.need("name"), args.need("description"), args.need("instructions"))
             return "Saved the skill ${args.optString("name")}."

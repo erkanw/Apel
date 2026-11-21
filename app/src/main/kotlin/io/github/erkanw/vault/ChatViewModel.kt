@@ -401,7 +401,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         endVoice()
     }
 
+    /** The screen is gone; a turn it started finishes in [turnScope] without touching what was on it. */
+    @Volatile private var cleared = false
+
     override fun onCleared() {
+        cleared = true
         dictation.release()
         super.onCleared()
     }
@@ -843,9 +847,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         // Keeps the app alive if the screen locks or you switch apps while the agent is answering.
         AgentService.start(getApplication<Application>())
 
-        job = viewModelScope.launch {
-            // False once the session on screen is another one: this reply then has nothing left to show.
-            val here = { epoch == myEpoch }
+        job = turnScope.launch {
+            // False once the session on screen is another one, or the screen is gone: this reply then has nothing left to show.
+            val here = { epoch == myEpoch && !cleared }
             var answer = ""
             var reasoning = ""
             var started = false
@@ -935,6 +939,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     AgentService.stop(getApplication<Application>())
                     // The backend may have named the session now.
                     refreshSessions()
+                } else if (cleared) {
+                    // The app was swiped away mid-answer: the answer is saved, and a screen opened since shows it.
+                    AgentService.stop(getApplication<Application>())
+                    _currentChatId.value?.let { io.github.erkanw.vault.agent.SessionEvents.changed(it) }
                 }
             }
             if (here() && _mood.value == BlobState.Finished) {
@@ -1051,6 +1059,12 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         const val SNIPPET_CHARS = 160
         const val FINISHED_MS = 4_000L
+
+        /**
+         * Where a chat's turn runs: the process, not this screen. Swiping the app away clears the screen, but the turn
+         * goes on (kept alive by [AgentService]) and saves its answer; the next screen reads it.
+         */
+        val turnScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.Main.immediate)
     }
 }
 

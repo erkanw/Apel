@@ -281,6 +281,8 @@ object BrowserTools {
         override val defaultLevel = ToolLevel.Off
         override fun hint(args: JSONObject) = "Opening " + (Uri.parse(args.optString("url")).host?.removePrefix("www.") ?: "a page")
         override fun step(args: JSONObject) = "browser_open " + args.optString("url")
+        override fun mustAsk(args: JSONObject, ctx: ToolContext): ApprovalAsk? =
+            args.optString("url").takeIf { ctx.mustAskToOpen(it) }?.let { UrlTrail.ask(it) }
         override suspend fun run(args: JSONObject, ctx: ToolContext): String {
             ctx.readWeb = true
             val raw = args.need("url").trim().let { if ("://" in it) it else "https://$it" }
@@ -334,7 +336,7 @@ object BrowserTools {
         override fun step(args: JSONObject) = "browser_type " + args.optString("ref") + " “" + args.optString("text").take(60) + "”"
         override fun ask(args: JSONObject) = ApprovalAsk(
             if (args.optBoolean("submit")) "Type into ${args.optString("ref")} and send it?" else "Type into ${args.optString("ref")}?",
-            args.optString("text").take(500),
+            args.optString("text"),
         )
         override suspend fun run(args: JSONObject, ctx: ToolContext): String {
             ctx.readWeb = true

@@ -29,14 +29,14 @@ object ApprovalGate {
     /** Every request waiting now, oldest first. */
     val pending: StateFlow<List<Request>> = _pending.asStateFlow()
 
-    /** Suspends until the user answers (or the time runs out, which is a no). */
-    suspend fun ask(sessionId: String, tool: String, summary: String, detail: String, canAlways: Boolean = true, id: String = UUID.randomUUID().toString(), unattended: Boolean = false): Answer {
+    /** Suspends until the user answers (or the time runs out, which is a no): at most [timeoutMs], 30 minutes by default. */
+    suspend fun ask(sessionId: String, tool: String, summary: String, detail: String, canAlways: Boolean = true, id: String = UUID.randomUUID().toString(), unattended: Boolean = false, timeoutMs: Long = TIMEOUT_MS): Answer {
         val request = Request(id, sessionId, tool, summary, detail, canAlways, unattended)
         val answer = CompletableDeferred<Answer>()
         synchronized(waiting) { waiting[request.id] = answer }
         _pending.update { it + request }
         try {
-            return withTimeoutOrNull(TIMEOUT_MS) { answer.await() } ?: Answer.Timeout
+            return withTimeoutOrNull(timeoutMs.coerceAtMost(TIMEOUT_MS)) { answer.await() } ?: Answer.Timeout
         } finally {
             synchronized(waiting) { waiting.remove(request.id) }
             _pending.update { list -> list.filterNot { it.id == request.id } }

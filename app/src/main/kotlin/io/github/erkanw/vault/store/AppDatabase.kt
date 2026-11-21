@@ -565,8 +565,27 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val migrations get() = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
-            instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "app.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9).build().also { instance = it }
+            instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "app.db").addMigrations(*migrations).build().also { instance = it }
+        }
+
+        /**
+         * Opens the database file [file] (a backup's, unpacked) as the app would, runs its migrations and Room's schema
+         * check, and closes it. Throws when the app couldn't open it, so a foreign or damaged file is refused before it
+         * replaces anything, instead of failing on every start after.
+         */
+        fun checkAt(context: Context, file: java.io.File) {
+            val db = Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, file.absolutePath)
+                .addMigrations(*migrations)
+                .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
+                .build()
+            try {
+                db.openHelper.writableDatabase.query("SELECT COUNT(*) FROM sqlite_master").use { it.moveToFirst() }
+            } finally {
+                db.close()
+            }
         }
     }
 }

@@ -28,6 +28,15 @@ class ToolContext(
     /** The turn read the web (a page or a search): what it keeps in memory now asks first (PLAN §10). */
     @Volatile var readWeb = false
 
+    /** The addresses this turn has seen ([UrlTrail]): after reading the web, a new one asks before it is opened. */
+    private val seenUrls: MutableSet<String> = java.util.Collections.synchronizedSet(HashSet())
+
+    /** Notes the addresses in [text] (your message, a search's sources, a tool's result). */
+    fun see(text: String) { seenUrls += UrlTrail.find(text) }
+
+    /** Whether opening [url] now needs your OK: the turn read something untrusted, and [url] wasn't in anything it saw. */
+    fun mustAskToOpen(url: String): Boolean = readWeb && UrlTrail.key(url)?.let { it !in seenUrls } != false
+
     /** Time spent waiting for the user’s OK, which doesn’t count against the turn’s limit. */
     @Volatile var waitedMs = 0L
 

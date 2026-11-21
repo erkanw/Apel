@@ -105,13 +105,39 @@ object OpenRouterAuth {
      */
     class Loopback : AutoCloseable {
         private val server = ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))
-        val callbackUrl: String = "http://localhost:${server.localPort}/callback"
 
-        /** Waits (up to ten minutes) for the browser's request and returns its path and query. */
+        /**
+         * A secret part of the address, made for this sign-in. OpenRouter may not send `state` back, so this is what tells
+         * the browser's request apart from another app on the phone that connects to the port first.
+         */
+        private val secret = b64url(ByteArray(16).also(random::nextBytes))
+        val callbackUrl: String = "http://localhost:${server.localPort}/callback/$secret"
+
+        /**
+         * Waits (up to ten minutes) for the browser's request and returns its path and query. Any other connection gets a
+         * 404 and is ignored, and none may hold the listener: each has five seconds to send its first line.
+         */
         suspend fun await(): String = withContext(Dispatchers.IO) {
-            server.soTimeout = 10 * 60_000
-            server.accept().use { socket ->
-                val line = socket.getInputStream().bufferedReader().readLine().orEmpty()
+            val deadline = System.currentTimeMillis() + 10 * 60_000L
+            while (true) {
+                server.soTimeout = (deadline - System.currentTimeMillis()).coerceAtLeast(1L).toInt()
+                answer(server.accept())?.let { return@withContext it }
+            }
+            @Suppress("UNREACHABLE_CODE")
+            error("unreachable")
+        }
+
+        /** The callback address when [socket] is the browser coming back with ours, else null (after a 404). */
+        private fun answer(socket: java.net.Socket): String? = socket.use {
+            socket.soTimeout = 5_000
+            val line = runCatching { socket.getInputStream().bufferedReader().readLine() }.getOrNull().orEmpty()
+            // "GET /callback/<secret>?code=…&state=… HTTP/1.1"
+            val target = line.substringAfter(' ', "").substringBeforeLast(' ', "")
+            if (!line.startsWith("GET ") || target.substringBefore('?') != "/callback/$secret") {
+                runCatching { socket.getOutputStream().apply { write("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray()); flush() } }
+                return null
+            }
+            run {
                 // The button opens the app (its apel-vault://oauth intent filter); the code was received here already.
                 val back = "intent://oauth#Intent;scheme=apel-vault;package=io.github.erkanw.vault;end"
                 val page = "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'>" +
@@ -125,8 +151,7 @@ object OpenRouterAuth {
                     write(bytes)
                     flush()
                 }
-                // "GET /callback?code=…&state=… HTTP/1.1"
-                "http://localhost" + line.substringAfter(' ').substringBeforeLast(' ')
+                "http://localhost$target"
             }
         }
 

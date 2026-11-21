@@ -7,6 +7,8 @@ import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
 import io.github.erkanw.vault.SavedFile
 import io.github.erkanw.vault.saveInDownloads
+import io.github.erkanw.vault.tools.ToolLevel
+import io.github.erkanw.vault.tools.ToolRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -26,6 +28,8 @@ object Backup {
     const val DB_VERSION = 9
 
     private const val STAGING = "restore"
+    /** Where a restore keeps what it replaces until it has finished. */
+    private const val ASIDE = "restore-old"
 
     data class Made(val file: SavedFile, val bytes: Long)
 
@@ -182,7 +186,7 @@ object Backup {
                     z.getInputStream(e).use { i -> out.outputStream().use { i.copyTo(it) } }
                 }
             }
-            checkDatabase(File(staging, "db/app.db"))
+            checkDatabase(app, File(staging, "db/app.db"))
         } catch (e: BackupException) {
             staging.deleteRecursively()
             throw e
@@ -191,47 +195,75 @@ object Backup {
             throw BackupException(BackupProblem.Damaged, e)
         }
 
-        // The point of no return: the database is closed and kept closed until the process ends.
+        // A backup can come from someone else: it may not turn "Always allow" on for a tool that asks by default.
+        prefs["tool_levels"]?.let { levels ->
+            prefs["tool_levels"] = levels.mapValues { (name, value) ->
+                (value as? String)?.let { ToolLevel.of(it) }?.let { ToolRegistry.restoredLevel(name, it).id } ?: value
+            }
+        }
+
+        // The point of no return: the database is closed and kept closed until the process ends. What is there now is
+        // moved aside first, and put back if anything below fails, so a restore is all or nothing.
         AppDatabase.closeForRestore {
             val dbDir = app.getDatabasePath("app.db").parentFile!!
-            for (name in listOf("app.db", "app.db-wal", "app.db-shm", "app.db-journal")) File(dbDir, name).delete()
-            for (name in BackupFormat.DB_FILES) File(staging, "db/$name").takeIf { it.isFile }?.let { move(it, File(dbDir, name)) }
-
             val base = app.filesDir
-            for (root in BackupFormat.FILE_ROOTS) {
-                File(base, root).deleteRecursively()
-                File(staging, "files/$root").takeIf { it.exists() }?.let { move(it, File(base, root)) }
+            // Each place the restore replaces: where it lives, and its name in the staging and set-aside folders.
+            val places = buildList {
+                for (name in listOf("app.db", "app.db-wal", "app.db-shm", "app.db-journal")) add(File(dbDir, name) to "db/$name")
+                for (root in BackupFormat.FILE_ROOTS) add(File(base, root) to "files/$root")
+                add(File(app.cacheDir, BackupFormat.SENT) to "cache/${BackupFormat.SENT}")
+                for (single in BackupFormat.FILE_SINGLES) add(File(base, single) to "files/$single")
             }
-            File(app.cacheDir, BackupFormat.SENT).deleteRecursively()
-            File(staging, "cache/${BackupFormat.SENT}").takeIf { it.exists() }?.let { move(it, File(app.cacheDir, BackupFormat.SENT)) }
-            for (single in BackupFormat.FILE_SINGLES) {
-                File(base, single).delete()
-                File(staging, "files/$single").takeIf { it.isFile }?.let { move(it, File(base, single)) }
-            }
-
-            for (name in BackupFormat.PREFS) {
-                val editor = app.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear()
-                prefs[name]?.forEach { (key, value) ->
-                    @Suppress("UNCHECKED_CAST")
-                    when (value) {
-                        is String -> editor.putString(key, value)
-                        is Boolean -> editor.putBoolean(key, value)
-                        is Int -> editor.putInt(key, value)
-                        is Long -> editor.putLong(key, value)
-                        is Float -> editor.putFloat(key, value)
-                        is Set<*> -> editor.putStringSet(key, value as Set<String>)
-                    }
+            val aside = File(app.dataDir, ASIDE).apply { deleteRecursively(); mkdirs() }
+            val oldPrefs = BackupFormat.PREFS.associateWith { HashMap(app.getSharedPreferences(it, Context.MODE_PRIVATE).all) }
+            try {
+                for ((live, rel) in places) live.takeIf { it.exists() }?.let { move(it, File(aside, rel)) }
+                for ((live, rel) in places) {
+                    // Only the database files the backup format carries come in (the -shm and journal are left out).
+                    if (rel.startsWith("db/") && rel.removePrefix("db/") !in BackupFormat.DB_FILES) continue
+                    File(staging, rel).takeIf { it.exists() }?.let { move(it, live) }
                 }
-                editor.commit()
+                for (name in BackupFormat.PREFS) writePrefs(app, name, prefs[name].orEmpty())
+            } catch (e: Exception) {
+                // Put everything back as it was, then report it: the database opens again on its next use.
+                for ((live, rel) in places) {
+                    live.deleteRecursively()
+                    File(aside, rel).takeIf { it.exists() }?.let { move(it, live) }
+                }
+                for (name in BackupFormat.PREFS) writePrefs(app, name, oldPrefs[name].orEmpty())
+                aside.deleteRecursively()
+                staging.deleteRecursively()
+                throw BackupException(BackupProblem.Damaged, e)
             }
+            aside.deleteRecursively()
             staging.deleteRecursively()
             checked.zip.delete()
             restart(app)
         }
     }
 
-    /** Opens the unpacked database read-only: a SQLite file at a version this build can migrate, and whole. */
-    private fun checkDatabase(file: File) {
+    /** Replaces the preferences file [name] with [values] (types as read from the backup or from the phone). */
+    private fun writePrefs(app: Context, name: String, values: Map<String, Any?>) {
+        val editor = app.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear()
+        values.forEach { (key, value) ->
+            @Suppress("UNCHECKED_CAST")
+            when (value) {
+                is String -> editor.putString(key, value)
+                is Boolean -> editor.putBoolean(key, value)
+                is Int -> editor.putInt(key, value)
+                is Long -> editor.putLong(key, value)
+                is Float -> editor.putFloat(key, value)
+                is Set<*> -> editor.putStringSet(key, value as Set<String>)
+            }
+        }
+        editor.commit()
+    }
+
+    /**
+     * Checks the unpacked database: a SQLite file at a version this build can migrate, whole, and one the app itself
+     * opens (its migrations run and Room's schema check passes, on the unpacked copy).
+     */
+    private fun checkDatabase(app: Context, file: File) {
         if (!file.isFile) throw BackupException(BackupProblem.Damaged)
         val db = try {
             SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READWRITE)
@@ -246,6 +278,11 @@ object Backup {
             if (version > DB_VERSION) throw BackupException(BackupProblem.Newer)
             val ok = it.rawQuery("PRAGMA quick_check", null).use { c -> c.moveToFirst() && c.getString(0) == "ok" }
             if (!ok) throw BackupException(BackupProblem.Damaged)
+        }
+        try {
+            AppDatabase.checkAt(app, file)
+        } catch (e: Exception) {
+            throw BackupException(BackupProblem.Damaged, e)
         }
     }
 

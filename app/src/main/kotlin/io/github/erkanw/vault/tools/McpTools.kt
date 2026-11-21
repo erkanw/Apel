@@ -127,7 +127,7 @@ class McpTool(private val server: McpServerEntity, private val info: McpToolInfo
     override fun hint(args: JSONObject) = "Using ${server.name}"
     // org.json writes "/" as "\/": shown to people, it is put back.
     override fun step(args: JSONObject) = "${server.name}: ${readableToolName(info.name)} " + args.toString().replace("\\/", "/").take(160)
-    override fun ask(args: JSONObject) = ApprovalAsk("Use “${readableToolName(info.name)}” on ${server.name}?", args.toString(2).replace("\\/", "/").take(1_500))
+    override fun ask(args: JSONObject) = ApprovalAsk("Use “${readableToolName(info.name)}” on ${server.name}?", args.toString(2).replace("\\/", "/"))
 
     override suspend fun run(args: JSONObject, ctx: ToolContext): String = withContext(Dispatchers.IO) {
         val token = McpStore.token(ctx.app, server)
