@@ -1,0 +1,1 @@
+Security fixes, reported by Han Wong: the agent can no longer write into its memory or skills folders by spelling a path differently; Allow on a request that came by notification asks for your fingerprint first; database names from a crafted backup can’t reach files elsewhere; editing a file over 200 KB no longer cuts it short. Please update.

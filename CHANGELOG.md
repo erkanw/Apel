@@ -3,6 +3,19 @@
 Each release has a section here; its first lines are the GitHub release notes, and
 `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` holds the short version F-Droid shows.
 
+## 0.2.1 (versionCode 3)
+
+Security fixes, found and reported privately by Han Wong
+([GHSA-hxqm-jrhr-f2fw](https://github.com/erkanw/apel/security/advisories/GHSA-hxqm-jrhr-f2fw)). Please update.
+
+- **Files:** the agent can no longer write into memory/ or skills/ by spelling the path differently (such as
+  `./skills/…`); those folders are changed only by their own tools.
+- **Approvals:** Allow (and Always allow) on a request that came by notification now asks for your fingerprint, face
+  or screen lock first. Allow in a chat you’re watching is still one tap.
+- **Databases:** a database name or archived file name the app wouldn’t make, for example from a crafted backup, never
+  becomes a file path.
+- **Editing files:** editing a file bigger than 200 KB no longer cuts it short; files over 1 MB can’t be edited in place.
+
 ## 0.2.0 (versionCode 2)
 
 Agents: more than one agent, each made for a job.
