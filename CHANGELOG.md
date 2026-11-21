@@ -6,7 +6,7 @@ Each release has a section here; its first lines are the GitHub release notes, a
 ## 0.2.2 (versionCode 4)
 
 The rest of the security fixes from Han Wong’s private report
-([advisories](https://github.com/erkanw/apel/security/advisories)). Please update.
+([GHSA-jr23-87jf-9x8j](https://github.com/erkanw/apel/security/advisories/GHSA-jr23-87jf-9x8j)). Please update.
 
 - **Approvals:** a request shows everything it will run, however long, and says when it is long. Writing or editing a
   file shows the text.
