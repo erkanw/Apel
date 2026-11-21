@@ -3,6 +3,28 @@
 Each release has a section here; its first lines are the GitHub release notes, and
 `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` holds the short version F-Droid shows.
 
+## 0.2.2 (versionCode 4)
+
+The rest of the security fixes from Han Wong’s private report
+([advisories](https://github.com/erkanw/apel/security/advisories)). Please update.
+
+- **Approvals:** a request shows everything it will run, however long, and says when it is long. Writing or editing a
+  file shows the text.
+- **Web:** after reading a page, the hidden browser or a tool server’s answer, opening an address that wasn’t in your
+  message or in what was read asks first, so a page can’t send your information somewhere else.
+- **Sign-in:** OpenRouter’s sign-in only accepts its own return address, so another app can’t get in the way.
+- **Backups:** a restore checks the backup’s database the way the app opens it, puts everything back if it fails, and
+  “Always allow” from a backup comes back as “Ask first” for tools that ask by default.
+- **Notifications:** each approval request has its own.
+- **Chats:** an answer finishes when you swipe the app away.
+- **Automations:** one waiting for your OK in a background job ends properly before Android stops it.
+- **Tool servers:** every tool asks first until you allow it, and levels stay with the server they were set for.
+- **Agents** read only their own memory.
+- **Privacy:** Android’s own backup and phone-to-phone transfer copy nothing; the app is hidden in recent apps.
+- **Hidden browser:** it can’t reach this phone or the home network through a name or a WebSocket either.
+- CSV import keeps zeros in front; a price that isn’t listed shows as unknown, not free; the budget ignores costs that
+  aren’t real amounts; a saved server token isn’t lost on a passing error.
+
 ## 0.2.1 (versionCode 3)
 
 Security fixes, found and reported privately by Han Wong
