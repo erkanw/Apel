@@ -95,7 +95,7 @@ class UserDbCoreTest {
 
     /** Registry rows can come from a restored backup: a name or archived file the app wouldn't make never becomes a path. */
     @Test fun forgedRegistryRowsReachNoFile() {
-        fresh()
+        fresh(Access.ReadWrite)
         val outside = File(home.parentFile, "outside-${System.nanoTime()}").apply { mkdirs() }
         val victim = File(outside, "keep.txt").apply { writeText("keep") }
         try {
