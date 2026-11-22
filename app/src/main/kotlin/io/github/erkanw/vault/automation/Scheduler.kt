@@ -55,7 +55,10 @@ object Scheduler {
     suspend fun arm(context: Context) {
         val app = context.applicationContext
         val now = System.currentTimeMillis()
-        val next = Automations.all(app).filter { it.enabled && it.nextRun > 0L }.minOfOrNull { it.nextRun }
+        val first = Automations.all(app).filter { it.enabled && it.nextRun > 0L }.minByOrNull { it.nextRun }
+        val next = first?.nextRun
+        // The background notice names the next job.
+        BackgroundMode.setNext(first?.name, next ?: 0L)
         val alarms = app.getSystemService(AlarmManager::class.java)
         val pi = alarmIntent(app)
         if (next == null) {
@@ -105,6 +108,8 @@ object Scheduler {
     class CheckWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
         override suspend fun doWork(): Result {
             Automations.ensureBuiltIns(applicationContext)
+            // Running in the background, but Android ended it: back, where it allows a start (no battery limits).
+            BackgroundMode.ensure(applicationContext)
             val now = System.currentTimeMillis()
             val overdue = Automations.all(applicationContext).any { it.enabled && it.nextRun in 1..(now - 60_000L) }
             // A plain background job: Android stops it after about ten minutes.
@@ -131,7 +136,10 @@ object Scheduler {
 /** The automations alarm went off: run what is due. */
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Scheduler.ACTION_ALARM) Scheduler.runDue(context.applicationContext)
+        if (intent.action != Scheduler.ACTION_ALARM) return
+        // An exact alarm may start the service: running in the background picks up again if it had been stopped.
+        BackgroundMode.ensure(context.applicationContext)
+        Scheduler.runDue(context.applicationContext)
     }
 }
 
@@ -139,6 +147,8 @@ class AlarmReceiver : BroadcastReceiver() {
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val app = context.applicationContext
+        // After a restart or an update Android allows the start: running in the background picks up again.
+        if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) BackgroundMode.ensure(app)
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {

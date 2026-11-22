@@ -42,7 +42,25 @@ class ToolContext(
 
     /** The tool running now, as its step reads, so a Stop can keep it as "Stopped". */
     @Volatile var inFlight: String? = null
+
+    /**
+     * Set when this turn is a subagent's or another agent's answer, not the chat's own (PLAN §6.16): who it is, as its
+     * approvals start ("Subagent “Prices”", "Training coach, for Apel"). Such a turn can't message agents or start subagents.
+     */
+    var delegate: String? = null
+
+    /** The model preset this turn runs with now: a subagent uses it when it may not choose its own. */
+    @Volatile var model: String? = null
+
+    /** Tools this turn can't use: what a subagent or a messaged agent is kept from (PLAN §6.16). */
+    var excluded: Set<String> = emptySet()
 }
+
+/**
+ * What "Don’t ask again" remembers about a call (PLAN §7.5): a [key] shared by calls like it (the same site, folder, table
+ * or agent) and the words for the card, as in "Don’t ask again for [label]".
+ */
+class Similar(val key: String, val label: String)
 
 /** What a tool wants approved before it runs: one line, and the details (a path, a text) for the monospace well. */
 class ApprovalAsk(val summary: String, val detail: String)
@@ -79,6 +97,25 @@ interface Tool {
 
     /** What the approval card says when the tool is set to Ask first. */
     fun ask(args: JSONObject): ApprovalAsk = ApprovalAsk(hint(args), step(args))
+
+    /** The same, for tools whose card needs the phone (a model's name, an agent's name). */
+    fun askFor(args: JSONObject, ctx: ToolContext): ApprovalAsk = ask(args)
+
+    /**
+     * Calls like this one, for "Don’t ask again" and for approving what you allowed before; null: it always asks (what
+     * it carries matters each time: a schedule, a skill, a memory note, text to type).
+     */
+    fun similar(args: JSONObject, ctx: ToolContext): Similar? = null
+
+    /** Whether it is offered at all to [agent] now (talking to other agents needs another agent). */
+    fun offered(context: Context, agent: io.github.erkanw.vault.agent.AgentScope?): Boolean = true
+
+    /** What the model reads about it for [agent]: tools whose choices depend on the phone (models, agents) build it here. */
+    fun instructionsFor(context: Context, agent: io.github.erkanw.vault.agent.AgentScope?): String = instructions
+    fun schemaFor(context: Context, agent: io.github.erkanw.vault.agent.AgentScope?): JSONObject = schema
+
+    /** Runs without the usual time limit: it keeps its own (a subagent, another agent's answer). */
+    val ownLimit: Boolean get() = false
 
     suspend fun run(args: JSONObject, ctx: ToolContext): String
 }

@@ -105,6 +105,23 @@ object DbTools {
         }
     }
 
+    private val CHANGE = Regex("""^\s*(INSERT(?:\s+OR\s+\w+)?\s+INTO|REPLACE\s+INTO|UPDATE(?:\s+OR\s+\w+)?|DELETE\s+FROM)\s+["`\[]?(\w+)""", RegexOption.IGNORE_CASE)
+
+    /** "Don’t ask again" for a changing statement: its kind and table in [database]; null for anything else (CREATE, ALTER, several statements). */
+    fun similarChange(database: String, sql: String): Similar? {
+        if (database.isBlank() || sql.trim().trimEnd(';').contains(';')) return null
+        val m = CHANGE.find(sql) ?: return null
+        val verb = m.groupValues[1].trim().uppercase().substringBefore(' ')
+        val table = m.groupValues[2]
+        val words = when (verb) {
+            "INSERT", "REPLACE" -> "adding rows to"
+            "UPDATE" -> "changing rows in"
+            else -> "deleting rows from"
+        }
+        val kind = if (verb == "REPLACE") "INSERT" else verb
+        return Similar("db_execute|$database|$kind|${table.lowercase()}", "$words $table in “$database”")
+    }
+
     object ExecuteTool : Tool {
         override val name = "db_execute"
         override val title = "Change databases"
@@ -121,6 +138,9 @@ object DbTools {
             val db = forAgent(ctx).firstOrNull { it.name == name } ?: return "No database “$name” is available. Call db_list to see them."
             return if (db.access != Access.ReadWrite) "“$name” is read only for you. The user can change that in the app." else null
         }
+
+        /** Rows added to, changed in or deleted from the same table; a change to the structure always asks. */
+        override fun similar(args: JSONObject, ctx: ToolContext): Similar? = similarChange(args.optString("database"), args.optString("sql"))
 
         override fun ask(args: JSONObject) = ApprovalAsk(
             "Change the database “${args.optString("database")}”",

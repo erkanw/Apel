@@ -42,8 +42,9 @@ data class ApprovalRequest(
 
 /**
  * The approval card (handbook §3, the agent’s request card made generic): an amber dot and "Wants your OK", what the agent
- * wants to do, the details in monospace, Allow and Deny stacked on the pressed tone, and "Always allow this tool" as a
- * quiet checkbox row. [sending] greys the choices while the answer is being applied.
+ * wants to do, the details in monospace, Allow, "Allow and don’t ask again" (when calls like it can be remembered) and
+ * Deny stacked on the pressed tone, and "Always allow this tool" as a quiet checkbox row. [sending] greys the choices
+ * while the answer is being applied.
  */
 @Composable
 fun ApprovalCard(
@@ -54,6 +55,9 @@ fun ApprovalCard(
     modifier: Modifier = Modifier,
     /** Offer "Always allow this tool" (only when the tool’s level is what asks). */
     allowAlways: Boolean = true,
+    /** What "Allow and don’t ask again" covers ("pages on example.com"); null: not offered. */
+    similar: String? = null,
+    onAllowSimilar: (always: Boolean) -> Unit = onAllow,
 ) {
     val k = MaterialTheme.vault
     var always by remember(request.id) { mutableStateOf(false) }
@@ -94,6 +98,10 @@ fun ApprovalCard(
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(k.pressed)) {
             ChoiceRow("Allow", k.text, enabled = !sending) { onAllow(always) }
             Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(k.line))
+            if (similar != null) {
+                ChoiceRow("Allow and don’t ask again", k.text, enabled = !sending, subtitle = "For $similar") { onAllowSimilar(always) }
+                Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(k.line))
+            }
             ChoiceRow("Deny", k.danger, enabled = !sending, onClick = onDeny)
         }
         if (allowAlways) Spacer(Modifier.height(4.dp))
@@ -121,18 +129,22 @@ fun ApprovalCard(
 /** Details longer than this get a line saying how long they are. */
 private const val LONG_DETAIL = 600
 
-/** One full-width choice in the stack under a request. */
+/** One full-width choice in the stack under a request, with a muted second line when it needs one. */
 @Composable
-private fun ChoiceRow(label: String, color: androidx.compose.ui.graphics.Color, enabled: Boolean, onClick: () -> Unit) {
-    Text(
-        label,
-        color = if (enabled) color else MaterialTheme.vault.muted.copy(alpha = 0.6f),
-        style = VaultType.Body,
-        fontWeight = FontWeight.Medium,
-        modifier = Modifier
+private fun ChoiceRow(label: String, color: androidx.compose.ui.graphics.Color, enabled: Boolean, subtitle: String? = null, onClick: () -> Unit) {
+    Column(
+        Modifier
             .fillMaxWidth()
             .heightIn(min = 52.dp)
             .pressable(onClick = { if (enabled) onClick() }, pressedScale = 1f, pressed = MaterialTheme.vault.faint.copy(alpha = 0.35f), onClickLabel = label)
-            .padding(horizontal = 16.dp, vertical = 15.dp),
-    )
+            .padding(horizontal = 16.dp, vertical = if (subtitle == null) 15.dp else 12.dp),
+    ) {
+        Text(
+            label,
+            color = if (enabled) color else MaterialTheme.vault.muted.copy(alpha = 0.6f),
+            style = VaultType.Body,
+            fontWeight = FontWeight.Medium,
+        )
+        if (subtitle != null) Text(subtitle, color = MaterialTheme.vault.muted, style = VaultType.Label.copy(fontWeight = null), lineHeight = 19.sp)
+    }
 }

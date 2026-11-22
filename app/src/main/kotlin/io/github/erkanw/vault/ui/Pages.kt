@@ -309,6 +309,17 @@ fun AutomationScreen(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                // Keep running in the background (PLAN §8): off until turned on.
+                item(key = "background") {
+                    val background by setup.background.collectAsStateWithLifecycle()
+                    VaultGroup {
+                        GroupSwitchRow(
+                            androidx.compose.ui.res.stringResource(io.github.erkanw.vault.R.string.background_switch),
+                            androidx.compose.ui.res.stringResource(io.github.erkanw.vault.R.string.background_switch_sub, setup.appName),
+                            background == true, setup::setBackground,
+                        )
+                    }
+                }
                 // What the phone holds back, in one line with the way to change it (PLAN §6.13: a refusal is respected).
                 setup.missing(jobs.any { it.enabled && !it.builtIn })?.let { (text, action, fix) ->
                     item(key = "setup") {
@@ -385,8 +396,9 @@ fun AutomationScreen(
 }
 
 /**
- * What keeps automations on time (PLAN §6.13): notifications for their results, exact alarms and no battery limits. Asked
- * once, when the first job is saved; afterwards a refusal shows as one line on the page that leads to the setting.
+ * What keeps automations on time (PLAN §6.13, §8): notifications for their results, running in the background, exact
+ * alarms and no battery limits. Asked once, when the first job is saved, and when running in the background is turned on
+ * without the other two; afterwards a refusal shows as one line on the page that leads to the setting.
  */
 private class AutomationSetup(
     private val context: android.content.Context,
@@ -394,12 +406,32 @@ private class AutomationSetup(
     private val openSettings: (android.content.Intent) -> Unit,
 ) {
     var showing by mutableStateOf(false)
+    /** The dialog was opened by turning on running in the background: it asks only for the rest. */
+    private var fromSwitch by mutableStateOf(false)
     /** Exact alarms were asked for: the battery question follows when the app is back in front. */
     var batteryNext by mutableStateOf(false)
     /** Ticks when the app comes back to the front, so the line re-reads what is allowed now. */
     var resumed by mutableStateOf(0)
 
     private val prefs = context.getSharedPreferences("automations_ui", android.content.Context.MODE_PRIVATE)
+
+    val appName: String = context.applicationInfo.loadLabel(context.packageManager).toString()
+    val background = io.github.erkanw.vault.automation.BackgroundMode.onFlow(context)
+
+    /** The switch: on at once; then the dialog asks for what else keeps jobs on time, if anything is missing. */
+    fun setBackground(on: Boolean) {
+        io.github.erkanw.vault.automation.BackgroundMode.set(context, on)
+        if (!on) return
+        // The quiet notification is how you see it running: ask for notifications first, as the first saved job does.
+        if (!notifies()) askNotifications()
+        markAsked()
+        if (!exact() || !unlimited()) {
+            fromSwitch = true
+            showing = true
+        }
+    }
+
+    private fun backgroundOn() = io.github.erkanw.vault.automation.BackgroundMode.isOn(context)
 
     fun exact() = io.github.erkanw.vault.automation.Scheduler.canExact(context)
     fun unlimited() = context.getSystemService(android.os.PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
@@ -410,7 +442,12 @@ private class AutomationSetup(
         if (asked()) return
         if (!notifies()) askNotifications()
         // The page's line waits until the dialog is answered.
-        if (!exact() || !unlimited()) showing = true else markAsked()
+        if (!exact() || !unlimited() || !backgroundOn()) {
+            fromSwitch = false
+            showing = true
+        } else {
+            markAsked()
+        }
     }
 
     private fun asked() = prefs.getBoolean("asked", false)
@@ -431,6 +468,12 @@ private class AutomationSetup(
         return when {
             !exact() && android.os.Build.VERSION.SDK_INT >= 31 -> Triple("Jobs run at about the time set.", "Allow exact alarms", { openSettings(exactAlarmsIntent()) })
             !notifies() -> Triple("Results won’t show as notifications.", "Allow notifications", { openSettings(notificationsIntent()) })
+            // Running in the background, but still under battery limits: some phones end it anyway.
+            backgroundOn() && !unlimited() -> Triple(
+                context.getString(io.github.erkanw.vault.R.string.background_battery, appName),
+                context.getString(io.github.erkanw.vault.R.string.background_battery_fix),
+                { openSettings(batteryIntent()) },
+            )
             else -> null
         }
     }
@@ -446,16 +489,23 @@ private class AutomationSetup(
             onPauseOrDispose { }
         }
         if (!showing) return
-        val app = remember { context.applicationInfo.loadLabel(context.packageManager).toString() }
+        val app = appName
         VaultDialog(
             title = "Keep jobs on time",
-            text = "Android holds back apps in the background. To start jobs on the minute with the screen off, allow $app " +
-                "to set exact alarms and to run without battery limits. You can change both later in Android’s settings.",
+            text = if (fromSwitch) {
+                "To start jobs on the minute with the screen off, also allow $app to set exact alarms and to run without " +
+                    "battery limits. You can change both later in Android’s settings."
+            } else {
+                "Android holds back apps in the background. To start jobs on the minute, even after you close $app, let it " +
+                    "keep running in the background (a quiet notification shows it), set exact alarms and run without " +
+                    "battery limits. You can change these later."
+            },
             confirm = "Allow",
             dismiss = "Not now",
             onConfirm = {
                 showing = false
                 markAsked()
+                if (!fromSwitch) io.github.erkanw.vault.automation.BackgroundMode.set(context, true)
                 if (!exact() && android.os.Build.VERSION.SDK_INT >= 31) {
                     batteryNext = true
                     openSettings(exactAlarmsIntent())

@@ -435,21 +435,24 @@ fun ChatScreen(vm: ChatViewModel, focusTick: Int, onBack: () -> Unit, onSettings
             // A tool waiting for your OK in this chat (PLAN §7.5): the card sits above the composer until you answer.
             val approvals by io.github.erkanw.vault.agent.ApprovalGate.pending.collectAsStateWithLifecycle()
             approvals.firstOrNull { it.sessionId == chatId }?.let { r ->
+                val gate = io.github.erkanw.vault.agent.ApprovalGate
+                fun allow(answer: io.github.erkanw.vault.agent.ApprovalGate.Answer) {
+                    val request = ApprovalRequest(r.id, r.tool, r.summary, r.detail)
+                    val activity = context.findActivity()
+                    when {
+                        // Asked by notification (an automation, or the app was away): only after the fingerprint (PLAN §10).
+                        !gate.needsBiometrics(r, answer) -> gate.answer(r.id, answer)
+                        activity == null -> vm.showNotice("Couldn't open the fingerprint prompt.")
+                        else -> allowWithBiometrics(activity, request, onAllowed = { gate.answer(r.id, answer) }, onFailed = vm::showNotice)
+                    }
+                }
                 ApprovalCard(
                     ApprovalRequest(r.id, r.tool, r.summary, r.detail),
                     sending = false,
-                    onAllow = { always ->
-                        val gate = io.github.erkanw.vault.agent.ApprovalGate
-                        val answer = if (always) io.github.erkanw.vault.agent.ApprovalGate.Answer.AllowAlways else io.github.erkanw.vault.agent.ApprovalGate.Answer.Allow
-                        val request = ApprovalRequest(r.id, r.tool, r.summary, r.detail)
-                        val activity = context.findActivity()
-                        when {
-                            // Asked by notification (an automation, or the app was away): only after the fingerprint (PLAN §10).
-                            !gate.needsBiometrics(r, answer) -> gate.answer(r.id, answer)
-                            activity == null -> vm.showNotice("Couldn't open the fingerprint prompt.")
-                            else -> allowWithBiometrics(activity, request, onAllowed = { gate.answer(r.id, answer) }, onFailed = vm::showNotice)
-                        }
-                    },
+                    onAllow = { always -> allow(if (always) io.github.erkanw.vault.agent.ApprovalGate.Answer.AllowAlways else io.github.erkanw.vault.agent.ApprovalGate.Answer.Allow) },
+                    // "Always allow this tool" ticked as well: the whole tool, which covers calls like this one too.
+                    onAllowSimilar = { always -> allow(if (always) io.github.erkanw.vault.agent.ApprovalGate.Answer.AllowAlways else io.github.erkanw.vault.agent.ApprovalGate.Answer.AllowSimilar) },
+                    similar = r.similar,
                     onDeny = { io.github.erkanw.vault.agent.ApprovalGate.answer(r.id, io.github.erkanw.vault.agent.ApprovalGate.Answer.Deny) },
                     // At most a third of the screen, so the chat and the composer stay in view with the keyboard up.
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)

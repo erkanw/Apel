@@ -120,6 +120,23 @@ object FileTools {
         override suspend fun run(args: JSONObject, ctx: ToolContext) = Workspace.readText(Workspace.readable(ctx, Workspace.resolve(ctx.app, args.need("path"))))
     }
 
+    /**
+     * "Don’t ask again" for a file tool: calls in the same folder ([verb] ends in "in"), or, for a file the user made
+     * ("replacing", "changing"), that file only.
+     */
+    internal fun similarIn(tool: String, ctx: ToolContext, path: String, verb: String): Similar? {
+        val file = runCatching { Workspace.resolve(ctx.app, path, forWrite = true) }.getOrNull() ?: return null
+        val rel = Workspace.relative(ctx.app, file)
+        return similarFor(tool, rel, verb)
+    }
+
+    /** The same, from a path relative to the workspace (kept apart so it can be tested without a phone). */
+    internal fun similarFor(tool: String, rel: String, verb: String): Similar {
+        if (!verb.endsWith(" in")) return Similar("$tool|=$rel", "$verb $rel")
+        val folder = rel.substringBeforeLast('/', "")
+        return if (folder.isEmpty()) Similar("$tool|/", "$verb the workspace’s top folder") else Similar("$tool|$folder/", "$verb $folder/")
+    }
+
     object Write : Tool {
         override val name = "file_write"
         override val title = "Write files"
@@ -136,6 +153,8 @@ object FileTools {
             return ApprovalAsk("Replace ${file.name}, a file you made", detail(args))
         }
         override fun ask(args: JSONObject) = ApprovalAsk("Write ${args.optString("path").substringAfterLast('/')}", detail(args))
+        override fun similar(args: JSONObject, ctx: ToolContext) =
+            similarIn(name, ctx, args.optString("path"), if (mustAsk(args, ctx) != null) "replacing" else "writing files in")
 
         /** The path and the whole text that would be written. */
         fun detail(args: JSONObject) = args.optString("path") + "\n\n" + args.optString("content")
@@ -163,6 +182,8 @@ object FileTools {
         override fun step(args: JSONObject) = "file_edit " + args.optString("path")
         override fun mustAsk(args: JSONObject, ctx: ToolContext): ApprovalAsk? = Write.mustAsk(args, ctx)?.let { ApprovalAsk("Change ${args.optString("path").substringAfterLast('/')}, a file you made", detail(args)) }
         override fun ask(args: JSONObject) = ApprovalAsk("Change ${args.optString("path").substringAfterLast('/')}", detail(args))
+        override fun similar(args: JSONObject, ctx: ToolContext) =
+            similarIn(name, ctx, args.optString("path"), if (mustAsk(args, ctx) != null) "changing" else "editing files in")
 
         /** The path, the text that goes and the text that comes in its place. */
         fun detail(args: JSONObject) = args.optString("path") + "\n\nReplace:\n" + args.optString("old_text") + "\n\nWith:\n" + args.optString("new_text")
@@ -196,6 +217,7 @@ object FileTools {
         override val defaultLevel = ToolLevel.Allowed
         override fun hint(args: JSONObject) = "Moving ${args.optString("from").substringAfterLast('/')}"
         override fun step(args: JSONObject) = "file_move ${args.optString("from")} → ${args.optString("to")}"
+        override fun similar(args: JSONObject, ctx: ToolContext) = similarIn(name, ctx, args.optString("from"), "moving files in")
         override suspend fun run(args: JSONObject, ctx: ToolContext): String {
             val from = Workspace.resolve(ctx.app, args.need("from"), forWrite = true)
             val to = Workspace.resolve(ctx.app, args.need("to"), forWrite = true)
@@ -219,6 +241,7 @@ object FileTools {
         override fun hint(args: JSONObject) = "Deleting ${args.optString("path").substringAfterLast('/')}"
         override fun step(args: JSONObject) = "file_delete " + args.optString("path")
         override fun ask(args: JSONObject) = ApprovalAsk("Move ${args.optString("path").substringAfterLast('/')} to the Trash", args.optString("path"))
+        override fun similar(args: JSONObject, ctx: ToolContext) = similarIn(name, ctx, args.optString("path"), "deleting files in")
         override suspend fun run(args: JSONObject, ctx: ToolContext): String {
             val file = Workspace.resolve(ctx.app, args.need("path"), forWrite = true)
             if (!file.exists()) throw ToolException("Nothing there.")

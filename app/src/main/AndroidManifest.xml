@@ -8,6 +8,8 @@
     <!-- Keep the app alive while the agent answers (AgentService). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- "Keep running in the background" (off until the user turns it on): the same service, for days at a time. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Small vibrations when you send, copy and when a reply is done (Haptics). -->
     <uses-permission android:name="android.permission.VIBRATE" />
@@ -60,7 +62,14 @@
         <service
             android:name=".AgentService"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="dataSync|specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the user’s scheduled automations ready to run on time while the app is closed. Only when the user turns on Keep running in the background; it can be turned off from its notification." />
+        </service>
+        <receiver
+            android:name=".AgentService$TurnOffReceiver"
+            android:exported="false" />
 
         <!-- WorkManager's own foreground service, used when an automation runs from RunWorker (the alarm couldn't start
              AgentService): Android 14 and later need its type declared, or it can't go foreground. -->

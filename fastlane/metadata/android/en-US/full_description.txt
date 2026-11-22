@@ -2,11 +2,12 @@
 
 <p><b>What it does</b></p>
 <ul>
+<li><b>Agents</b> for different jobs, each with its own name, look, model, instructions and memory. They can ask each other what they know, and hand big tasks to subagents with a fresh chat, always with your OK.</li>
 <li><b>Chat</b> with streaming answers and the agent's steps as they happen; attach pictures, PDFs and text files; dictate; edit and ask again.</li>
 <li><b>Channels</b> keep chats apart under their own name and colour.</li>
 <li><b>Tools</b>, each Allowed, Ask first or Off: web search and reading pages, files in its workspace, memory, skills, automations, databases, notifications. Risky actions wait for your OK.</li>
 <li><b>Remote tool servers</b> (MCP over HTTP), added with an address and an optional token, and an experimental hidden browser.</li>
-<li><b>Automations</b>: scheduled jobs that run with the screen off and post their result to a channel.</li>
+<li><b>Automations</b>: scheduled jobs that run with the screen off, even after you close the app if you let it keep running in the background, and post their result to a channel.</li>
 <li><b>Databases</b>: SQLite databases the agent can read or write under rules you set, with a table browser, a SQL console and CSV import and export.</li>
 <li><b>Usage and budget</b>: what each model and each job cost, and a monthly limit.</li>
 <li><b>Backup</b>: everything except keys and tokens in one zip, restored on a new phone in a few taps.</li>

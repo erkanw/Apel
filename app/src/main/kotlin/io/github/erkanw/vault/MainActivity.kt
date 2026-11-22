@@ -73,6 +73,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         provider.onForeground()
+        // Stopped from Android’s active apps, or ended: running in the background comes back when the app opens.
+        io.github.erkanw.vault.automation.BackgroundMode.ensure(this)
     }
 
     // While the app is on screen a reply is read as it arrives: no notification then.

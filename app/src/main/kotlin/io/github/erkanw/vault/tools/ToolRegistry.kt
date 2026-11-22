@@ -20,6 +20,7 @@ object ToolRegistry {
         FileTools.Search, MemoryTools.Read, MemoryTools.Write, SkillStore.ListTool, SkillStore.ReadTool, SkillStore.SaveTool,
         AutomationTools.ListTool, AutomationTools.CreateTool, AutomationTools.UpdateTool, AutomationTools.DeleteTool,
         DbTools.ListTool, DbTools.SchemaTool, DbTools.QueryTool, DbTools.ExecuteTool, TimeTool, NotifyTool,
+        AgentTools.Message, AgentTools.Subagent,
     ) + BrowserTools.all
 
     fun tool(name: String): Tool? = tools.firstOrNull { it.name == name }
@@ -54,22 +55,26 @@ object ToolRegistry {
     /** Whether web search can be offered: only OpenRouter runs it (another search service joins later). */
     fun searchAvailable(kind: ProviderKind) = kind == ProviderKind.OpenRouter
 
-    /** The tools array for a request: every tool that isn't Off, and OpenRouter's web search when it is on. */
-    fun specs(context: Context, kind: ProviderKind, agent: io.github.erkanw.vault.agent.AgentScope? = null): JSONArray = JSONArray().apply {
+    /**
+     * The tools array for a request: every tool that isn't Off (nor switched off for [agent], nor in [exclude]), and
+     * OpenRouter's web search when it is on.
+     */
+    fun specs(context: Context, kind: ProviderKind, agent: io.github.erkanw.vault.agent.AgentScope? = null, exclude: Set<String> = emptySet()): JSONArray = JSONArray().apply {
         for (t in tools) {
-            if (level(context, t.name) == ToolLevel.Off) continue
+            if (level(context, t.name) == ToolLevel.Off || t.name in exclude) continue
             // Switched off for this agent (PLAN §6.16): not offered at all.
             if (agent != null && !agent.toolOn(t.name)) continue
+            if (!t.offered(context, agent)) continue
             put(
                 JSONObject().put("type", "function").put(
                     "function",
-                    JSONObject().put("name", t.name).put("description", t.instructions).put("parameters", t.schema),
+                    JSONObject().put("name", t.name).put("description", t.instructionsFor(context, agent)).put("parameters", t.schemaFor(context, agent)),
                 ),
             )
         }
         // The tool servers' tools that are switched on (a server's own switches are on the Tools page).
         for (t in McpStore.agentTools(context)) {
-            if (level(context, t.name) == ToolLevel.Off) continue
+            if (level(context, t.name) == ToolLevel.Off || t.name in exclude) continue
             if (agent != null && !agent.toolOn(t.name)) continue
             put(
                 JSONObject().put("type", "function").put(

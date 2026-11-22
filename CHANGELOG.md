@@ -3,6 +3,26 @@
 Each release has a section here; its first lines are the GitHub release notes, and
 `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` holds the short version F-Droid shows.
 
+## 0.3.0 (versionCode 5)
+
+Agents that work together, automations that keep running after you close the app, and fewer approvals to tap.
+
+- **Keep running in the background** (Automations): Apel stays running, like a VPN app, so automations start on time
+  even after you close it or clear your recent apps. A quiet notification shows the next job and can turn it off; Android
+  lists Apel under its active apps, where you can stop it too. Off until you turn it on; offered when you save your first
+  automation.
+- **Agents message each other:** an agent can ask your other agents what they know (from their memory, files or
+  databases) and use the answer. The question and the whole answer show in the chat’s steps.
+- **Subagents:** for a big task, such as reading many pages to compare prices, an agent can hand the work to a helper
+  with a fresh chat, so its own chat stays short. It picks the model from your models, or uses its own. Several can run
+  at once. Subagents don’t see the agent’s memory or About you, and can’t message agents or start subagents themselves.
+- Each agent’s page has switches for messaging other agents, starting subagents and choosing their model. Every message
+  and subagent asks you first.
+- **Allow and don’t ask again** on an approval: requests like it (the same site, folder, table, tool or agent) then run
+  without asking. Remembered approvals are listed on the Tools page, where you can forget them.
+- **Approve what you’ve allowed before** (experimental, on the Tools page): any request like one you allowed once runs
+  without asking; only new kinds of requests still wait for you. Automations, skills and memory notes always ask.
+
 ## 0.2.2 (versionCode 4)
 
 The rest of the security fixes from Han Wong’s private report

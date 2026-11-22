@@ -320,6 +320,7 @@ object BrowserTools {
         override fun step(args: JSONObject) = "browser_open " + args.optString("url")
         override fun mustAsk(args: JSONObject, ctx: ToolContext): ApprovalAsk? =
             args.optString("url").takeIf { ctx.mustAskToOpen(it) }?.let { UrlTrail.ask(it) }
+        override fun similar(args: JSONObject, ctx: ToolContext) = UrlTrail.similar(name, args.optString("url"))
         override suspend fun run(args: JSONObject, ctx: ToolContext): String {
             ctx.readWeb = true
             val raw = args.need("url").trim().let { if ("://" in it) it else "https://$it" }

@@ -31,7 +31,7 @@ it isn't encrypted: keep it somewhere safe.
 
 The internet and its state (to wait for a connection); notifications (replies, approvals, automations, the budget);
 exact alarms, starting after a restart, keeping the phone awake and running in the background while Apel works
-(automations on time); an exemption from battery optimisation, only if you allow it when asked; vibration, for haptic
+(automations on time), and all the time if you turn on Keep running in the background; an exemption from battery optimisation, only if you allow it when asked; vibration, for haptic
 feedback; the microphone, only while you dictate.
 
 ## Questions

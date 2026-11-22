@@ -38,15 +38,19 @@ for what you use; Apel itself is free and open source.
 - **Agents for different jobs.** Make a study companion, a researcher, a training coach or your own. Each has its own
   name, look, model, instructions and memory, and only the tools, skills and databases you allow it. A chat keeps the
   agent it started with, and every answer says which agent wrote it.
+- **Agents that work together.** An agent can ask your other agents what they know, and hand a big task (such as
+  reading many pages to compare prices) to a subagent with a fresh chat, so its own chat stays short. Each asks you
+  first, and each agent has its own switches for both.
 - **Chat that shows its work.** Answers stream in with the steps behind them (searches, files read, tools used).
   Attach pictures, PDFs and text files, dictate, edit a message and ask again.
 - **Channels** keep chats on one subject together, each with its own colour and agent.
 - **Files and databases.** The agent has its own folder and SQLite databases on the phone. You can browse and edit
   them, import and export CSV, or just describe what you want to track and let the agent set it up.
-- **Automations** run a prompt on a schedule and post the answer in a chat or channel.
+- **Automations** run a prompt on a schedule and post the answer in a chat or channel. Turn on Keep running in the
+  background and they start on time even after you close the app.
 - **Tools and skills.** Web search, web pages, files, databases, memory, notifications, an experimental browser, and
-  remote tool servers (MCP over HTTP). Each tool is allowed, asks first, or is off. Skills are instructions the agent
-  follows for tasks you repeat.
+  remote tool servers (MCP over HTTP). Each tool is allowed, asks first, or is off; "Allow and don’t ask again" lets
+  requests like one you approved run without asking. Skills are instructions the agent follows for tasks you repeat.
 - **Usage and budget.** See what each model, agent and automation cost, and set a monthly limit.
 - **A mascot you shape yourself.** A soft blob whose shape, colour and finish you choose, on Home and on a home-screen
   widget.
@@ -72,7 +76,8 @@ statement is in [PRIVACY.md](PRIVACY.md) and in the app (Settings → About).
 
 ## Status
 
-Apel is young. The latest release is **0.2.2**: with **0.2.1** it fixes the security problems found in an outside
+Apel is young. The latest release is **0.3.0**: agents that work together, running in the background for
+automations, and fewer approvals to tap. **0.2.1** and **0.2.2** fixed the security problems found in an outside
 review ([GHSA-hxqm-jrhr-f2fw](https://github.com/erkanw/apel/security/advisories/GHSA-hxqm-jrhr-f2fw),
 [GHSA-jr23-87jf-9x8j](https://github.com/erkanw/apel/security/advisories/GHSA-jr23-87jf-9x8j)), so update if you
 use an older one. **0.2.0** added agents, **0.1.0** was the first release. Releases are signed APKs here on GitHub;

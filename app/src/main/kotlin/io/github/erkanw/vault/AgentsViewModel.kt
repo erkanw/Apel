@@ -137,6 +137,8 @@ class AgentsViewModel(app: Application) : AndroidViewModel(app) {
                 val tools = (ToolRegistry.tools.map { Triple(it.name, it.title, it.description) } +
                     McpStore.agentTools(app).map { Triple(it.name, io.github.erkanw.vault.tools.readableToolName(it.title), it.description) })
                     .filter { (name, _, _) -> ToolRegistry.level(app, name) != io.github.erkanw.vault.tools.ToolLevel.Off }
+                    // Messaging agents and subagents have their own group on the page.
+                    .filter { (name, _, _) -> name !in io.github.erkanw.vault.tools.AgentTools.NAMES }
                     .map { (name, title, sub) -> AgentSwitch(name, title, sub, scope.toolOn(name)) }
                 val skills = SkillStore.all(app).filter { it.enabled }.map { AgentSwitch(it.name, it.name, it.description, scope.skillOn(it.name)) }
                 val dbs = runCatching { UserDbs.core(app).agentVisible() }.getOrDefault(emptyList())

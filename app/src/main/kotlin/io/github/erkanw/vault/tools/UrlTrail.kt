@@ -21,6 +21,17 @@ object UrlTrail {
         key(s)
     }.toList()
 
+    /** The site of [url] for "Don’t ask again" ("example.com"), without "www."; null for something that isn't a web address. */
+    fun host(url: String): String? {
+        val raw = url.trim().let { if ("://" in it) it else "https://$it" }
+        val u = raw.toHttpUrlOrNull() ?: return null
+        if (u.scheme != "http" && u.scheme != "https") return null
+        return u.host.removePrefix("www.")
+    }
+
+    /** Opening pages on the same site: [tool] and the host. */
+    fun similar(tool: String, url: String): Similar? = host(url)?.let { Similar("$tool|$it", "pages on $it") }
+
     /** The approval for opening [url], an address the turn hasn't seen, after reading something untrusted. */
     fun ask(url: String) = ApprovalAsk(
         "Open a new address, after reading the web",

@@ -62,6 +62,7 @@ object WebFetchTool : Tool {
     // After reading the web, an address from nowhere it read could carry your data out (PLAN §10): it asks first.
     override fun mustAsk(args: JSONObject, ctx: ToolContext): ApprovalAsk? =
         args.optString("url").takeIf { ctx.mustAskToOpen(it) }?.let { UrlTrail.ask(it) }
+    override fun similar(args: JSONObject, ctx: ToolContext) = UrlTrail.similar(name, args.optString("url"))
 
     fun isPublic(a: InetAddress): Boolean {
         if (a.isAnyLocalAddress || a.isLoopbackAddress || a.isLinkLocalAddress || a.isSiteLocalAddress || a.isMulticastAddress) return false

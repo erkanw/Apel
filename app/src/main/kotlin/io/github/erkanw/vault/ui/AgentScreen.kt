@@ -50,6 +50,7 @@ import io.github.erkanw.vault.AgentDb
 import io.github.erkanw.vault.AgentsViewModel
 import io.github.erkanw.vault.R
 import io.github.erkanw.vault.agent.AgentPresets
+import io.github.erkanw.vault.tools.AgentTools
 import io.github.erkanw.vault.mascot.BlobLook
 import io.github.erkanw.vault.mascot.BlobFlat
 import io.github.erkanw.vault.store.AgentInfo
@@ -280,6 +281,32 @@ fun AgentScreen(vm: AgentsViewModel, agentId: String, onBack: () -> Unit, onLook
                     }
                 }
                 Text(stringResource(R.string.agent_tools_caption), style = VaultType.Caption, color = k.muted, modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp))
+            }
+
+            // Working with other agents (PLAN §6.16): each a switch, kept with the agent's switched-off tools.
+            Column {
+                val off = AgentPresets.setOf(agent.row.toolsOff)
+                fun on(key: String) = key !in off
+                GroupLabel(stringResource(R.string.agent_others))
+                VaultGroup {
+                    GroupSwitchRow(
+                        stringResource(R.string.agent_others_message), stringResource(R.string.agent_others_message_sub, agent.name),
+                        on(AgentTools.MESSAGE), { vm.setTool(agent.id, AgentTools.MESSAGE, it) },
+                    )
+                    GroupDivider()
+                    GroupSwitchRow(
+                        stringResource(R.string.agent_others_subagents), stringResource(R.string.agent_others_subagents_sub, agent.name),
+                        on(AgentTools.SUBAGENT), { vm.setTool(agent.id, AgentTools.SUBAGENT, it) },
+                    )
+                    GroupDivider()
+                    GroupSwitchRow(
+                        stringResource(R.string.agent_others_model),
+                        if (on(AgentTools.SUBAGENT_MODEL)) stringResource(R.string.agent_others_model_on, agent.name) else stringResource(R.string.agent_others_model_off, agent.name),
+                        on(AgentTools.SUBAGENT_MODEL), { vm.setTool(agent.id, AgentTools.SUBAGENT_MODEL, it) },
+                        enabled = on(AgentTools.SUBAGENT),
+                    )
+                }
+                Text(stringResource(R.string.agent_others_caption), style = VaultType.Caption, color = k.muted, modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp))
             }
 
             Column {

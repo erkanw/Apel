@@ -22,6 +22,8 @@ class App : Application() {
                 Automations.ensureBuiltIns(this@App)
                 Scheduler.arm(this@App)
                 Scheduler.ensurePeriodic(this@App)
+                // Running in the background: start it where Android allows (an alarm, a restart, the app opening).
+                io.github.erkanw.vault.automation.BackgroundMode.ensure(this@App)
             } catch (e: Exception) {
                 Log.w("App", "automations start-up failed", e)
             }

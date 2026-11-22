@@ -134,6 +134,7 @@ object NotifyTool : Tool {
     override val defaultLevel = ToolLevel.Allowed
     override fun hint(args: JSONObject) = "Sending a notification"
     override fun step(args: JSONObject) = "notify \"${args.optString("title")}\""
+    override fun similar(args: JSONObject, ctx: ToolContext) = Similar(name, "notifications")
     override suspend fun run(args: JSONObject, ctx: ToolContext): String {
         val app = ctx.app
         if (android.os.Build.VERSION.SDK_INT >= 33 && app.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {

@@ -44,6 +44,9 @@ import io.github.erkanw.vault.chat.BuiltInTool
 import io.github.erkanw.vault.chat.McpServer
 import io.github.erkanw.vault.chat.serverSubtitle
 import io.github.erkanw.vault.tools.ToolLevel
+import io.github.erkanw.vault.R
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -65,6 +68,10 @@ fun ToolsScreen(vm: PagesViewModel, onBack: () -> Unit) {
     var removing by remember { mutableStateOf<McpServer?>(null) }
     var clearingBrowser by remember { mutableStateOf(false) }
     var note by remember { mutableStateOf<String?>(null) }
+    var remembered by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val auto by io.github.erkanw.vault.agent.ApprovalMemory.autoFlow(context).collectAsStateWithLifecycle()
+    val approvals by io.github.erkanw.vault.agent.ApprovalMemory.entries(context).collectAsStateWithLifecycle()
     val agent = LocalAgentName.current
     val tracker = rememberEntranceTracker()
     LaunchedEffect(Unit) { vm.loadTools() }
@@ -88,9 +95,31 @@ fun ToolsScreen(vm: PagesViewModel, onBack: () -> Unit) {
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                val (browser, core) = builtIn.items.partition { it.path.startsWith("browser_") }
+                val (browser, rest) = builtIn.items.partition { it.path.startsWith("browser_") }
+                val (agents, core) = rest.partition { it.path in io.github.erkanw.vault.tools.AgentTools.NAMES }
+                // What you allowed before (PLAN §7.5): the experimental switch and what is remembered.
+                item(key = "approvals") {
+                    Column(Modifier.entrance("approvals", 0, tracker, dx = 0.dp, dy = 8.dp)) {
+                        GroupLabel(stringResource(R.string.approvals_group), trailing = {
+                            Text(stringResource(R.string.approvals_experimental), style = VaultType.Label.copy(fontWeight = null), color = k.attention)
+                        })
+                        VaultGroup {
+                            GroupSwitchRow(
+                                stringResource(R.string.approvals_auto), stringResource(R.string.approvals_auto_sub), auto == true,
+                                { io.github.erkanw.vault.agent.ApprovalMemory.setAuto(context, it) },
+                            )
+                            GroupDivider()
+                            val n = approvals.orEmpty().size
+                            GroupActionRow(
+                                stringResource(R.string.approvals_remembered),
+                                if (n == 0) stringResource(R.string.approvals_none_yet) else pluralStringResource(R.plurals.approvals_count, n, n),
+                                { remembered = true }, chevron = true,
+                            )
+                        }
+                    }
+                }
                 if (core.isNotEmpty()) item(key = "builtin") {
-                    Column(Modifier.entrance("builtin", 0, tracker, dx = 0.dp, dy = 8.dp)) {
+                    Column(Modifier.entrance("builtin", 1, tracker, dx = 0.dp, dy = 8.dp)) {
                         GroupLabel("Built in")
                         VaultGroup {
                             core.forEachIndexed { i, tool ->
@@ -105,8 +134,20 @@ fun ToolsScreen(vm: PagesViewModel, onBack: () -> Unit) {
                         }
                     }
                 }
+                if (agents.isNotEmpty()) item(key = "agents") {
+                    Column(Modifier.entrance("agents", 2, tracker, dx = 0.dp, dy = 8.dp)) {
+                        GroupLabel(stringResource(R.string.agent_others))
+                        VaultGroup {
+                            agents.forEachIndexed { i, tool ->
+                                if (i > 0) GroupDivider()
+                                GroupActionRow(tool.title, tool.level.label, { levelOf = tool.path }, chevron = true)
+                            }
+                        }
+                        Text(stringResource(R.string.tools_agents_caption), style = VaultType.Caption, color = k.muted, modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp))
+                    }
+                }
                 if (browser.isNotEmpty()) item(key = "browser") {
-                    Column(Modifier.entrance("browser", 1, tracker, dx = 0.dp, dy = 8.dp)) {
+                    Column(Modifier.entrance("browser", 3, tracker, dx = 0.dp, dy = 8.dp)) {
                         GroupLabel("Browser", trailing = { Text("Experimental", style = VaultType.Label.copy(fontWeight = null), color = k.attention) })
                         VaultGroup {
                             browser.forEachIndexed { i, tool ->
@@ -123,7 +164,7 @@ fun ToolsScreen(vm: PagesViewModel, onBack: () -> Unit) {
                     }
                 }
                 item(key = "servers") {
-                    Column(Modifier.entrance("servers", 2, tracker, dx = 0.dp, dy = 8.dp).navigationBarsPadding()) {
+                    Column(Modifier.entrance("servers", 4, tracker, dx = 0.dp, dy = 8.dp).navigationBarsPadding()) {
                         // The + keeps its 48dp target but not its height, so this label sits as close to its group as the others.
                         GroupLabel("Connected tools", trailing = {
                             Box(Modifier.height(20.dp).offset(x = 6.dp).wrapContentHeight(unbounded = true)) {
@@ -174,6 +215,8 @@ fun ToolsScreen(vm: PagesViewModel, onBack: () -> Unit) {
 
     if (adding) AddServerSheet(vm, onDismiss = { adding = false }, onAdded = { title -> adding = false; note = "Added $title." })
 
+    if (remembered) RememberedSheet(approvals.orEmpty(), onDismiss = { remembered = false })
+
     removing?.let { server ->
         VaultDialog(
             title = "Remove ${server.title}?",
@@ -202,6 +245,44 @@ fun ToolsScreen(vm: PagesViewModel, onBack: () -> Unit) {
                 modifier = Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(50)).background(k.pressed).padding(horizontal = 16.dp, vertical = 10.dp)
                     .semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite },
             )
+        }
+    }
+}
+
+/**
+ * What you allowed before (PLAN §7.5): "Don’t ask again" first, then what was allowed once (used only by the experimental
+ * switch), each with Forget; Forget all at the end.
+ */
+@Composable
+private fun RememberedSheet(entries: List<io.github.erkanw.vault.agent.ApprovalMemory.Entry>, onDismiss: () -> Unit) {
+    val k = MaterialTheme.vault
+    val context = LocalContext.current
+    val memory = io.github.erkanw.vault.agent.ApprovalMemory
+    VaultSheet(onDismiss = onDismiss, title = stringResource(R.string.approvals_remembered)) {
+        Column(Modifier.padding(horizontal = 16.dp).heightIn(max = 520.dp).verticalScroll(rememberScrollState())) {
+            if (entries.isEmpty()) {
+                Text(stringResource(R.string.approvals_empty), style = VaultType.Body, color = k.muted, modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp))
+            }
+            val (always, seen) = entries.partition { it.always }
+            listOf(always to R.string.approvals_always, seen to R.string.approvals_seen).forEach { (list, label) ->
+                if (list.isEmpty()) return@forEach
+                GroupLabel(stringResource(label))
+                VaultGroup {
+                    list.forEachIndexed { i, e ->
+                        if (i > 0) GroupDivider()
+                        GroupActionRow(
+                            e.label.replaceFirstChar { it.uppercase() }, toolTitle(e.tool), { },
+                            trailing = { BarButton(VaultIcons.Close, stringResource(R.string.approvals_forget) + ": " + e.label, { memory.forget(context, e.key) }, tint = k.muted, iconSize = 18.dp) },
+                        )
+                    }
+                }
+                if (label == R.string.approvals_seen) {
+                    Text(stringResource(R.string.approvals_seen_caption), style = VaultType.Caption, color = k.muted, modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp))
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+            if (entries.isNotEmpty()) QuietButton(stringResource(R.string.approvals_forget_all), { memory.forgetAll(context) }, color = k.danger)
+            Spacer(Modifier.height(12.dp))
         }
     }
 }
