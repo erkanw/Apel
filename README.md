@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/erkanw/apel/releases/latest">Download the latest APK</a> ·
+  <a href="https://github.com/erkanw/apel-agent/releases/latest">Download the latest APK</a> ·
   <a href="CHANGELOG.md">What’s new</a> ·
   <a href="PRIVACY.md">Privacy</a>
 </p>
@@ -58,7 +58,7 @@ for what you use; Apel itself is free and open source.
 
 ## Get started
 
-1. Download the APK from the [latest release](https://github.com/erkanw/apel/releases/latest) and open it on
+1. Download the APK from the [latest release](https://github.com/erkanw/apel-agent/releases/latest) and open it on
    your phone (Android 10 or newer). Android asks once to allow installs from your browser or file manager.
 2. Open Apel and follow the welcome: connect a provider, pick a first model, tell it your name, and give your agent a
    name and a look. A short walkthrough of the app follows.
@@ -78,15 +78,15 @@ statement is in [PRIVACY.md](PRIVACY.md) and in the app (Settings → About).
 
 Apel is young. The latest release is **0.3.0**: agents that work together, running in the background for
 automations, and fewer approvals to tap. **0.2.1** and **0.2.2** fixed the security problems found in an outside
-review ([GHSA-hxqm-jrhr-f2fw](https://github.com/erkanw/apel/security/advisories/GHSA-hxqm-jrhr-f2fw),
-[GHSA-jr23-87jf-9x8j](https://github.com/erkanw/apel/security/advisories/GHSA-jr23-87jf-9x8j)), so update if you
+review ([GHSA-hxqm-jrhr-f2fw](https://github.com/erkanw/apel-agent/security/advisories/GHSA-hxqm-jrhr-f2fw),
+[GHSA-jr23-87jf-9x8j](https://github.com/erkanw/apel-agent/security/advisories/GHSA-jr23-87jf-9x8j)), so update if you
 use an older one. **0.2.0** added agents, **0.1.0** was the first release. Releases are signed APKs here on GitHub;
 F-Droid is planned. There is no iPhone version. See the [changelog](CHANGELOG.md) for what changed.
 
-Found a bug or have an idea? [Open an issue](https://github.com/erkanw/apel/issues). In the app, Settings → About →
+Found a bug or have an idea? [Open an issue](https://github.com/erkanw/apel-agent/issues). In the app, Settings → About →
 “Copy diagnostics” gives a short report without any of your content that you can paste into it. Found a security
 problem? Please don’t open an issue: report it privately with
-[Report a vulnerability](https://github.com/erkanw/apel/security/advisories/new).
+[Report a vulnerability](https://github.com/erkanw/apel-agent/security/advisories/new).
 
 ## Build it yourself
 

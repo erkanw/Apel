@@ -37,4 +37,4 @@ feedback; the microphone, only while you dictate.
 ## Questions
 
 Apel is open source: you can read what it does. Ask or report a problem at
-[github.com/erkanw/apel](https://github.com/erkanw/apel).
+[github.com/erkanw/apel-agent](https://github.com/erkanw/apel-agent).

@@ -166,8 +166,8 @@
     <string name="about_licences">Licences</string>
     <string name="about_licences_sub">%1$s’s own, and those of what it’s made with</string>
     <string name="about_source">Source code</string>
-    <string name="about_source_url" translatable="false">https://github.com/erkanw/apel</string>
-    <string name="about_source_sub">github.com/erkanw/apel: questions and bug reports go there</string>
+    <string name="about_source_url" translatable="false">https://github.com/erkanw/apel-agent</string>
+    <string name="about_source_sub">github.com/erkanw/apel-agent: questions and bug reports go there</string>
     <string name="about_tour">Show the walkthrough</string>
     <string name="about_tour_sub">A short card for each page: what it’s for and where to find it.</string>
     <string name="about_welcome">Show the welcome again</string>
@@ -208,7 +208,7 @@
     <string name="privacy_permissions_title">Permissions</string>
     <string name="privacy_permissions">The internet and its state (to wait for a connection); notifications (replies, approvals, automations, the budget); exact alarms, starting after a restart, keeping the phone awake and running in the background while %1$s works (automations on time), and all the time if you turn on Keep running in the background; an exemption from battery optimisation, only if you allow it when asked; vibration, for haptic feedback; the microphone, only while you dictate.</string>
     <string name="privacy_questions_title">Questions</string>
-    <string name="privacy_questions">%1$s is open source: you can read what it does. Ask or report a problem at github.com/erkanw/apel.</string>
+    <string name="privacy_questions">%1$s is open source: you can read what it does. Ask or report a problem at github.com/erkanw/apel-agent.</string>
 
     <!-- Drawer → Agent settings (Phase 11) -->
     <string name="agent_settings_title">Agent settings</string>

@@ -26,7 +26,7 @@ Agents that work together, automations that keep running after you close the app
 ## 0.2.2 (versionCode 4)
 
 The rest of the security fixes from Han Wong’s private report
-([GHSA-jr23-87jf-9x8j](https://github.com/erkanw/apel/security/advisories/GHSA-jr23-87jf-9x8j)). Please update.
+([GHSA-jr23-87jf-9x8j](https://github.com/erkanw/apel-agent/security/advisories/GHSA-jr23-87jf-9x8j)). Please update.
 
 - **Approvals:** a request shows everything it will run, however long, and says when it is long. Writing or editing a
   file shows the text.
@@ -48,7 +48,7 @@ The rest of the security fixes from Han Wong’s private report
 ## 0.2.1 (versionCode 3)
 
 Security fixes, found and reported privately by Han Wong
-([GHSA-hxqm-jrhr-f2fw](https://github.com/erkanw/apel/security/advisories/GHSA-hxqm-jrhr-f2fw)). Please update.
+([GHSA-hxqm-jrhr-f2fw](https://github.com/erkanw/apel-agent/security/advisories/GHSA-hxqm-jrhr-f2fw)). Please update.
 
 - **Files:** the agent can no longer write into memory/ or skills/ by spelling the path differently (such as
   `./skills/…`); those folders are changed only by their own tools.
