@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="fastlane/metadata/android/en-US/images/icon.png" width="96" alt="Apel's icon: a small blob">
+  <img src="fastlane/metadata/android/en-US/images/icon.png" width="96" alt="Apel’s icon: a small blob">
 </p>
 
 <h1 align="center">Apel</h1>
@@ -77,16 +77,24 @@ statement is in [PRIVACY.md](PRIVACY.md) and in the app (Settings → About).
 ## Status
 
 Apel is young. The latest release is **0.3.0**: agents that work together, running in the background for
-automations, and fewer approvals to tap. **0.2.1** and **0.2.2** fixed the security problems found in an outside
-review ([GHSA-hxqm-jrhr-f2fw](https://github.com/erkanw/apel-agent/security/advisories/GHSA-hxqm-jrhr-f2fw),
-[GHSA-jr23-87jf-9x8j](https://github.com/erkanw/apel-agent/security/advisories/GHSA-jr23-87jf-9x8j)), so update if you
-use an older one. **0.2.0** added agents, **0.1.0** was the first release. Releases are signed APKs here on GitHub;
-F-Droid is planned. There is no iPhone version. See the [changelog](CHANGELOG.md) for what changed.
+automations, and fewer approvals to tap. If you use a version older than 0.2.2, please update: 0.2.1 and 0.2.2 fixed
+security problems found in an outside review
+([GHSA-hxqm-jrhr-f2fw](https://github.com/erkanw/apel-agent/security/advisories/GHSA-hxqm-jrhr-f2fw),
+[GHSA-jr23-87jf-9x8j](https://github.com/erkanw/apel-agent/security/advisories/GHSA-jr23-87jf-9x8j)). Releases are
+signed APKs here on GitHub; F-Droid is planned. There is no iPhone version. The [changelog](CHANGELOG.md) has every
+release.
+
+## Report a problem or help
 
 Found a bug or have an idea? [Open an issue](https://github.com/erkanw/apel-agent/issues). In the app, Settings → About →
-“Copy diagnostics” gives a short report without any of your content that you can paste into it. Found a security
-problem? Please don’t open an issue: report it privately with
-[Report a vulnerability](https://github.com/erkanw/apel-agent/security/advisories/new).
+“Copy diagnostics” gives a short report without any of your content that you can paste into it.
+
+Found a security problem? Please don’t open an issue: report it privately with
+[Report a vulnerability](https://github.com/erkanw/apel-agent/security/advisories/new). [SECURITY.md](SECURITY.md) has
+the details.
+
+Pull requests are welcome. For anything bigger than a small fix, open an issue first so we can agree on the approach.
+Run the unit tests before you send it: `./gradlew :app:testDebugUnitTest`.
 
 ## Build it yourself
 
@@ -116,16 +124,21 @@ Debug builds also have three galleries for design review: `KitGalleryActivity` (
 
 ```
 app/src/main/kotlin/io/github/erkanw/vault/
-  MainActivity, AppGraph       the activity, and the one place long-lived parts are built
+  App, MainActivity, AppGraph  process start, the activity, and the one place long-lived parts are built
+  AgentService                 the foreground service that keeps the agent and Keep running in the background alive
   ChatViewModel                chat, sessions, channels, composer, dictation
   PagesViewModel               Files, Skills, Automations, Tools
-  AgentsViewModel              the agents and each agent's page
+  DatabasesViewModel           the Databases pages: tables, the SQL console, backups
+  AgentsViewModel              the agents and each agent’s page
+  ProviderViewModel            sign-in, your own server, and picking models in the welcome
+  UsageViewModel               the Usage page and the budget
   SettingsViewModel            appearance, notifications, widget, models, backup
-  agent/                       the agent loop, prompts, and what the screens ask of it
+  agent/                       the agent loop, prompts, tool calls, subagents, and what the screens ask of it
   automation/                  scheduled jobs and the nightly memory tidy
   chat/                        chat models and pure helpers (sessions, channels, attachments, markdown, commands)
+  data/                        settings, the mascot’s look, and keys (SecretStore)
   mascot/                      the blob: shapes, engine, painter, flat icons, states
-  tools/                       the agent's tools
+  tools/                       the agent’s tools
   ui/                          the screens and the component kit
   widget/                      the mascot widget and the usage widget
   openrouter/, provider/       the OpenRouter catalogue and sign-in, and your own server
@@ -135,8 +148,7 @@ app/src/debug/                 demo mode (DemoBackend), galleries
 fastlane/metadata/android/     the F-Droid listing (descriptions, changelogs, screenshots)
 ```
 
-The design system is in [DESIGN.md](DESIGN.md). The code’s package
-is `io.github.erkanw.vault`, after the project’s working name.
+The code’s package is `io.github.erkanw.vault`, after the project’s working name.
 
 </details>
 
